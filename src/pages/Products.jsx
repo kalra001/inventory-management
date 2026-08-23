@@ -14,6 +14,7 @@ export default function Products() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [editingProductId, setEditingProductId] = useState(null)
 
   useEffect(() => {
     load()
@@ -35,21 +36,45 @@ export default function Products() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const { error } = await supabase.from('products').insert({
+    const payload = {
       product_id: previewId,
       variety: form.variety.trim(),
       gsm: form.gsm ? Number(form.gsm) : null,
       size_cm: form.size_cm.trim() || null,
       size_in: form.size_in.trim() || null,
       packet_weight: form.packet_weight ? Number(form.packet_weight) : null,
-    })
+    }
+    const { error } = editingProductId
+      ? await supabase.from('products').update(payload).eq('product_id', editingProductId)
+      : await supabase.from('products').insert(payload)
     setSubmitting(false)
     if (error) {
-      setError(error.message)
+      setError(
+        error.code === '23503'
+          ? `Cannot change the ID for ${editingProductId} — it already has receipts, dispatches, holds, or purchase orders recorded against it.`
+          : error.message
+      )
       return
     }
+    setEditingProductId(null)
     setForm(emptyForm)
     load()
+  }
+
+  function startEdit(p) {
+    setEditingProductId(p.product_id)
+    setForm({
+      variety: p.variety,
+      gsm: p.gsm != null ? String(p.gsm) : '',
+      size_cm: p.size_cm || '',
+      size_in: p.size_in || '',
+      packet_weight: p.packet_weight != null ? String(p.packet_weight) : '',
+    })
+  }
+
+  function cancelEdit() {
+    setEditingProductId(null)
+    setForm(emptyForm)
   }
 
   async function handleDelete(productId) {
@@ -87,7 +112,10 @@ export default function Products() {
         <input placeholder="Size (cm) e.g. 56*71" value={form.size_cm} onChange={(e) => updateField('size_cm', e.target.value)} />
         <input placeholder="Size (in) e.g. 22*28" value={form.size_in} onChange={(e) => updateField('size_in', e.target.value)} />
         <input placeholder="Packet Weight" type="number" value={form.packet_weight} onChange={(e) => updateField('packet_weight', e.target.value)} />
-        <button type="submit" disabled={submitting || !previewId}>{submitting ? 'Adding…' : 'Add product'}</button>
+        <button type="submit" disabled={submitting || !previewId}>
+          {submitting ? 'Saving…' : editingProductId ? 'Save changes' : 'Add product'}
+        </button>
+        {editingProductId && <button type="button" onClick={cancelEdit}>Cancel</button>}
       </form>
       {previewId && <p className="hint">Product ID will be: {previewId}</p>}
 
@@ -97,7 +125,7 @@ export default function Products() {
         <table>
           <thead>
             <tr>
-              <th>Product ID</th><th>Variety</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Active</th><th></th><th></th>
+              <th>Product ID</th><th>Variety</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Active</th><th></th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +138,7 @@ export default function Products() {
                 <td>{p.size_in}</td>
                 <td>{p.packet_weight}</td>
                 <td>{p.active ? 'Yes' : 'No'}</td>
+                <td><button type="button" onClick={() => startEdit(p)}>Edit</button></td>
                 <td><button type="button" onClick={() => toggleActive(p)}>{p.active ? 'Archive' : 'Unarchive'}</button></td>
                 <td><button type="button" onClick={() => handleDelete(p.product_id)}>Delete</button></td>
               </tr>
