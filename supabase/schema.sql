@@ -284,7 +284,10 @@ select
   bi.qty_kg,
   bi.mill_billed_amount,
   bi.qty_kg * pis.actual_price_per_kg as expected_amount,
-  bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg) as variance
+  bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg) as variance,
+  b.gst_rate,
+  (bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg)) * (b.gst_rate / 100) as item_gst_amount,
+  (bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg)) * (1 + b.gst_rate / 100) as variance_including_gst
 from public.bill_items bi
 join public.bills b on b.bill_id = bi.bill_id
 join public.po_item_status pis on pis.po_item_id = bi.po_item_id;

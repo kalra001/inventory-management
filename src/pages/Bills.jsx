@@ -23,6 +23,9 @@ const ITEM_REPORT_COLUMNS = [
   { label: 'Mill Billed Amount', value: (r) => r.mill_billed_amount },
   { label: 'Expected Amount', value: (r) => r.expected_amount },
   { label: 'Variance', value: (r) => r.variance },
+  { label: 'GST Rate', value: (r) => r.gst_rate },
+  { label: 'GST Amount', value: (r) => r.item_gst_amount },
+  { label: 'Variance incl. GST', value: (r) => r.variance_including_gst },
 ]
 
 const BILL_TOTALS_COLUMNS = [
@@ -354,7 +357,7 @@ export default function Bills() {
             <tr>
               <th>Bill Number</th><th>Bill Date</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th>
               <th>Product</th><th>NSR Rate</th><th>Actual Price/kg</th><th>Qty (kg)</th>
-              <th>Mill Billed</th><th>Expected</th><th>Variance</th><th></th>
+              <th>Mill Billed</th><th>Expected</th><th>Variance</th><th>GST Rate</th><th>GST Amount</th><th>Variance incl. GST</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -373,11 +376,14 @@ export default function Bills() {
                 <td>{r.mill_billed_amount}</td>
                 <td>{r.expected_amount}</td>
                 <td className={r.variance !== 0 ? 'low-stock' : ''}>{r.variance}</td>
+                <td>{r.gst_rate}</td>
+                <td>{r.item_gst_amount}</td>
+                <td className={r.variance_including_gst !== 0 ? 'low-stock' : ''}>{r.variance_including_gst}</td>
                 <td><button type="button" onClick={() => startEditItem(r)}>Edit</button></td>
               </tr>
             ))}
             {itemStatusRows.length === 0 && (
-              <tr><td colSpan={14}>No bill items yet.</td></tr>
+              <tr><td colSpan={17}>No bill items yet.</td></tr>
             )}
           </tbody>
         </table>
