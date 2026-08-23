@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, todayStr } from '../lib/csv'
+import SearchableSelect from '../components/SearchableSelect'
 
 const COMPANIES = ['Kalra Paper Impex', 'Reliable Papers']
 const SOURCES = ['JK Paper CPM', 'JK Paper QSC']
@@ -75,6 +76,14 @@ export default function PurchaseOrders() {
   const [editingPoItemId, setEditingPoItemId] = useState(null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  const productOptions = useMemo(
+    () => products.map((p) => ({
+      value: p.product_id,
+      label: `${p.product_id} — ${p.variety}${p.active ? '' : ' (archived)'}`,
+    })),
+    [products]
+  )
 
   useEffect(() => {
     loadProducts()
@@ -296,12 +305,12 @@ export default function PurchaseOrders() {
         <div className="item-card" key={i}>
           <label>
             Product
-            <select value={row.product_id} onChange={(e) => updateItemRow(i, 'product_id', e.target.value)}>
-              <option value="" disabled>Select product…</option>
-              {products.map((p) => (
-                <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.variety}{p.active ? '' : ' (archived)'}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={productOptions}
+              value={row.product_id}
+              onChange={(v) => updateItemRow(i, 'product_id', v)}
+              placeholder="Type to search…"
+            />
           </label>
           <label>
             Ordered Qty (kg)
@@ -374,12 +383,13 @@ export default function PurchaseOrders() {
         </label>
         <label>
           Product
-          <select value={newItem.product_id} onChange={(e) => setNewItem((r) => ({ ...r, product_id: e.target.value }))} required>
-            <option value="" disabled>Select product…</option>
-            {products.map((p) => (
-              <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.variety}{p.active ? '' : ' (archived)'}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={productOptions}
+            value={newItem.product_id}
+            onChange={(v) => setNewItem((r) => ({ ...r, product_id: v }))}
+            placeholder="Type to search…"
+            required
+          />
         </label>
         <label>
           Ordered Qty (kg)

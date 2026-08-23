@@ -1,4 +1,32 @@
 * { box-sizing: border-box; }
+
+.searchable-select { position: relative; display: inline-block; }
+.searchable-select input { width: 100%; }
+.searchable-select-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.searchable-select-list li {
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.searchable-select-list li:hover { background: #f1f5f9; }
+.searchable-select-empty { color: #64748b; cursor: default; }
+.searchable-select-empty:hover { background: transparent !important; }
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;

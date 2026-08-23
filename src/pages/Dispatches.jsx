@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
+import SearchableSelect from '../components/SearchableSelect'
 
 const emptyForm = { product_id: '', date: new Date().toISOString().slice(0, 10), packets: '', vehicle: '', challan_no: '', remarks: '' }
 
@@ -39,6 +40,14 @@ export default function Dispatches() {
   const [reportTo, setReportTo] = useState(todayStr())
   const [reportError, setReportError] = useState(null)
   const [reportBusy, setReportBusy] = useState(false)
+
+  const productOptions = useMemo(
+    () => products.map((p) => ({
+      value: p.product_id,
+      label: `${p.product_id} — ${p.variety}${p.active ? '' : ' (archived)'}`,
+    })),
+    [products]
+  )
 
   useEffect(() => {
     loadProducts()
@@ -219,12 +228,13 @@ export default function Dispatches() {
       <form className="stack-form" onSubmit={handleSubmit}>
         <label>
           Product
-          <select value={form.product_id} onChange={(e) => updateField('product_id', e.target.value)} required>
-            <option value="" disabled>Select product…</option>
-            {products.map((p) => (
-              <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.variety}{p.active ? '' : ' (archived)'}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={productOptions}
+            value={form.product_id}
+            onChange={(v) => updateField('product_id', v)}
+            placeholder="Type to search…"
+            required
+          />
         </label>
         {available !== null && <p className="hint">Available: {available + (editingId ? editingOriginalPackets : 0)} packets</p>}
         <label>

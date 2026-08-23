@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import SearchableSelect from '../components/SearchableSelect'
 
 const emptyForm = { product_id: '', packets: '', held_by: '', note: '' }
 
@@ -14,6 +15,14 @@ export default function Holds() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  const productOptions = useMemo(
+    () => products.map((p) => ({
+      value: p.product_id,
+      label: `${p.product_id} — ${p.variety}${p.active ? '' : ' (archived)'}`,
+    })),
+    [products]
+  )
 
   useEffect(() => {
     loadProducts()
@@ -105,12 +114,13 @@ export default function Holds() {
       <form className="stack-form" onSubmit={handleSubmit}>
         <label>
           Product
-          <select value={form.product_id} onChange={(e) => updateField('product_id', e.target.value)} required>
-            <option value="" disabled>Select product…</option>
-            {products.map((p) => (
-              <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.variety}{p.active ? '' : ' (archived)'}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={productOptions}
+            value={form.product_id}
+            onChange={(v) => updateField('product_id', v)}
+            placeholder="Type to search…"
+            required
+          />
         </label>
         <label>
           Packets
