@@ -16,6 +16,22 @@ const STOCK_COLUMNS = [
   { label: 'Quantity after Hold', value: (r) => r.quantity_after_hold_kg },
 ]
 
+// if the query looks like "28*40", also try "40*28" so a search for one
+// orientation of a size still finds it stored the other way round
+function queryVariants(q) {
+  const parts = q.split('*')
+  if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
+    return [q, `${parts[1].trim()}*${parts[0].trim()}`]
+  }
+  return [q]
+}
+
+function matchesSearch(row, q) {
+  const haystacks = [row.product_id, row.variety, row.size_cm, row.size_in]
+    .map((v) => v?.toLowerCase() ?? '')
+  return queryVariants(q).some((variant) => haystacks.some((h) => h.includes(variant)))
+}
+
 function StockTable({ rows, emptyMessage }) {
   return (
     <div className="table-scroll">
@@ -86,7 +102,7 @@ export default function Dashboard() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const base = q
-      ? rows.filter((r) => [r.product_id, r.variety].some((v) => v?.toLowerCase().includes(q)))
+      ? rows.filter((r) => matchesSearch(r, q))
       : rows
     return [...base].sort(byVarietyThenGsmSize((r) => r.variety, (r) => r.gsm, (r) => r.size_cm))
   }, [rows, search])

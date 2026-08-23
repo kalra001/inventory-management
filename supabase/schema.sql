@@ -196,15 +196,23 @@ select
   poi.insurance_per_kg,
   poi.qsc_incidental_per_kg,
   poi.qsc_freight_discount_per_kg,
-  poi.nsr_rate
-    - (poi.nsr_rate * poi.cash_discount_pct / 100)
-    - poi.customer_discount_per_kg
-    - poi.additional_discount_per_kg
-    + poi.freight_per_kg
-    + poi.insurance_per_kg
-    + case when po.source = 'JK Paper QSC' then poi.qsc_incidental_per_kg else 0 end
-    - case when po.source = 'JK Paper QSC' then poi.qsc_freight_discount_per_kg else 0 end
-    as actual_price_per_kg,
+  case
+    when po.source = 'JK Paper QSC' then
+      (poi.nsr_rate - poi.qsc_freight_discount_per_kg)
+      - ((poi.nsr_rate - poi.qsc_freight_discount_per_kg) * poi.cash_discount_pct / 100)
+      - poi.customer_discount_per_kg
+      - poi.additional_discount_per_kg
+      + poi.freight_per_kg
+      + poi.insurance_per_kg
+      + poi.qsc_incidental_per_kg
+    else
+      poi.nsr_rate
+      - (poi.nsr_rate * poi.cash_discount_pct / 100)
+      - poi.customer_discount_per_kg
+      - poi.additional_discount_per_kg
+      + poi.freight_per_kg
+      + poi.insurance_per_kg
+  end as actual_price_per_kg,
   poi.closed,
   poi.closed_date,
   coalesce(r.received_kg, 0) as received_kg,
