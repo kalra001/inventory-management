@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import SearchableSelect from '../components/SearchableSelect'
+import { todayStr, daysAgoStr } from '../lib/csv'
 
 const emptyForm = { product_id: '', packets: '', held_by: '', note: '' }
 
@@ -60,9 +61,7 @@ export default function Holds() {
   }
 
   async function loadReleased() {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 1)
-    const cutoffStr = cutoff.toISOString().slice(0, 10)
+    const cutoffStr = daysAgoStr(1)
 
     const { data, error } = await supabase
       .from('holds')
@@ -116,7 +115,7 @@ export default function Holds() {
       .from('holds')
       .update({
         released: true,
-        released_date: new Date().toISOString().slice(0, 10),
+        released_date: todayStr(),
         released_by: user.id,
         edited_by: user.id,
       })

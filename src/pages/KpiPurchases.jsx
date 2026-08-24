@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { rowsToCsv, downloadCsv, addMonths, todayStr, GST_PRESETS, presetForRate } from '../lib/csv'
+import { rowsToCsv, downloadCsv, addMonths, todayStr, daysAgoStr, GST_PRESETS, presetForRate } from '../lib/csv'
 
 const UNITS = ['Ream', 'PKT', 'Gross']
 const CHARGE_TYPES = ['Freight', 'Loading Charges', 'Other']
@@ -149,9 +149,7 @@ export default function KpiPurchases() {
   }
 
   async function loadSummary() {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 2)
-    const cutoffStr = cutoff.toISOString().slice(0, 10)
+    const cutoffStr = daysAgoStr(2)
 
     const { data, error } = await supabase
       .from('kpi_invoice_summary')

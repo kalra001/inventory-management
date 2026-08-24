@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
 import SearchableSelect from '../components/SearchableSelect'
 
-const emptyForm = { product_id: '', date: new Date().toISOString().slice(0, 10), packets: '', vehicle: '', challan_no: '', remarks: '' }
+const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', challan_no: '', remarks: '' }
 
 const REPORT_COLUMNS = [
   { label: 'Date', value: (r) => r.date },

@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
 import SearchableSelect from '../components/SearchableSelect'
 
-const emptyForm = { product_id: '', date: new Date().toISOString().slice(0, 10), packets: '', vehicle: '', container_no: '', remarks: '', po_id: '', po_item_id: '' }
+const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', container_no: '', remarks: '', po_id: '', po_item_id: '' }
 
 const REPORT_COLUMNS = [
   { label: 'SO Number', value: (r) => r.purchase_order_items?.purchase_orders?.so_number },

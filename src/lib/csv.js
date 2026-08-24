@@ -30,8 +30,26 @@ export function addMonths(dateStr, months) {
   return d.toISOString().slice(0, 10)
 }
 
+// always formats in India Standard Time, regardless of the device's own
+// timezone setting — the whole team operates on IST, so this keeps "today"
+// consistent even if someone's phone/laptop clock is misconfigured
+const IST_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+function formatIstDate(d) {
+  return IST_FORMATTER.format(d)
+}
+
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  return formatIstDate(new Date())
+}
+
+export function daysAgoStr(days) {
+  return formatIstDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
 }
 
 // pulls the leading number out of a dimension string like "56*71" for numeric sorting
