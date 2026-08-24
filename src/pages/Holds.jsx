@@ -15,6 +15,7 @@ export default function Holds() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [available, setAvailable] = useState(null)
 
   const productOptions = useMemo(
     () => products.map((p) => ({
@@ -29,6 +30,19 @@ export default function Holds() {
     loadHolds()
     loadReleased()
   }, [])
+
+  useEffect(() => {
+    if (!form.product_id) {
+      setAvailable(null)
+      return
+    }
+    supabase
+      .from('stock_summary')
+      .select('packets_available')
+      .eq('product_id', form.product_id)
+      .single()
+      .then(({ data }) => setAvailable(data?.packets_available ?? 0))
+  }, [form.product_id])
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('product_id, variety, active').order('variety')
@@ -66,11 +80,18 @@ export default function Holds() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setSubmitting(true)
     setError(null)
+
+    const packets = Number(form.packets)
+    if (available !== null && packets > available) {
+      setError(`Cannot hold ${packets} packets — only ${available} available for this product.`)
+      return
+    }
+
+    setSubmitting(true)
     const { error } = await supabase.from('holds').insert({
       product_id: form.product_id,
-      packets: Number(form.packets),
+      packets,
       held_by: form.held_by,
       note: form.note || null,
       edited_by: user.id,
@@ -122,6 +143,7 @@ export default function Holds() {
             required
           />
         </label>
+        {available !== null && <p className="hint">Available: {available} packets</p>}
         <label>
           Packets
           <input type="number" min="0.01" step="any" value={form.packets} onChange={(e) => updateField('packets', e.target.value)} required />
