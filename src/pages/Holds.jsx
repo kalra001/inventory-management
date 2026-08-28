@@ -58,6 +58,7 @@ export default function Holds() {
       .select('hold_id, packets, held_by, held_date, note, released, product_id, products(product_id, variety), placed_by:profiles!edited_by(name)')
       .eq('released', false)
       .order('held_date', { ascending: false })
+      .order('hold_id', { ascending: false })
     if (error) setError(error.message)
     else setHolds(data)
   }
@@ -71,6 +72,7 @@ export default function Holds() {
       .eq('released', true)
       .gte('released_date', cutoffStr)
       .order('released_date', { ascending: false })
+      .order('hold_id', { ascending: false })
     if (error) setError(error.message)
     else setReleased(data)
   }
