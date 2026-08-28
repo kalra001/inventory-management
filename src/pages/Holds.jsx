@@ -17,6 +17,8 @@ export default function Holds() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [available, setAvailable] = useState(null)
+  const [editingHoldId, setEditingHoldId] = useState(null)
+  const [editingOriginalPackets, setEditingOriginalPackets] = useState(0)
 
   const productOptions = useMemo(
     () => products.map((p) => ({
@@ -82,26 +84,52 @@ export default function Holds() {
     setError(null)
 
     const packets = Number(form.packets)
-    if (available !== null && packets > available) {
-      setError(`Cannot hold ${packets} packets — only ${available} available for this product.`)
+    // when editing, this hold's own current amount is already excluded from
+    // `available`, so add it back before checking whether the new amount fits
+    const effectiveAvailable = available !== null ? available + (editingHoldId ? editingOriginalPackets : 0) : null
+
+    if (effectiveAvailable !== null && packets > effectiveAvailable) {
+      setError(`Cannot hold ${packets} packets — only ${effectiveAvailable} available for this product.`)
       return
     }
 
     setSubmitting(true)
-    const { error } = await supabase.from('holds').insert({
+    const payload = {
       product_id: form.product_id,
       packets,
       held_by: form.held_by,
       note: form.note || null,
       edited_by: user.id,
-    })
+    }
+    const { error } = editingHoldId
+      ? await supabase.from('holds').update(payload).eq('hold_id', editingHoldId)
+      : await supabase.from('holds').insert(payload)
     setSubmitting(false)
     if (error) {
       setError(error.message)
       return
     }
+    setEditingHoldId(null)
+    setEditingOriginalPackets(0)
     setForm(emptyForm)
     loadHolds()
+  }
+
+  function startEdit(h) {
+    setEditingHoldId(h.hold_id)
+    setEditingOriginalPackets(h.packets)
+    setForm({
+      product_id: h.product_id,
+      packets: String(h.packets),
+      held_by: h.held_by,
+      note: h.note || '',
+    })
+  }
+
+  function cancelEdit() {
+    setEditingHoldId(null)
+    setEditingOriginalPackets(0)
+    setForm(emptyForm)
   }
 
   function dispatchFromHold(h) {
@@ -142,7 +170,9 @@ export default function Holds() {
             required
           />
         </label>
-        {available !== null && <p className="hint">Available: {available} packets</p>}
+        {available !== null && (
+          <p className="hint">Available: {available + (editingHoldId ? editingOriginalPackets : 0)} packets</p>
+        )}
         <label>
           Packets
           <input type="number" min="0.01" step="any" value={form.packets} onChange={(e) => updateField('packets', e.target.value)} required />
@@ -155,7 +185,10 @@ export default function Holds() {
           Note
           <input value={form.note} onChange={(e) => updateField('note', e.target.value)} />
         </label>
-        <button type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Place hold'}</button>
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Saving…' : editingHoldId ? 'Save changes' : 'Place hold'}
+        </button>
+        {editingHoldId && <button type="button" onClick={cancelEdit}>Cancel</button>}
       </form>
 
       {error && <p className="error">{error}</p>}
@@ -165,7 +198,7 @@ export default function Holds() {
         <table>
           <thead>
             <tr>
-              <th>Product</th><th>Packets</th><th>Held By</th><th>Date</th><th>Note</th><th>Placed By</th><th></th><th></th>
+              <th>Product</th><th>Packets</th><th>Held By</th><th>Date</th><th>Note</th><th>Placed By</th><th></th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -177,12 +210,13 @@ export default function Holds() {
                 <td>{h.held_date}</td>
                 <td>{h.note}</td>
                 <td>{h.placed_by?.name}</td>
+                <td><button type="button" onClick={() => startEdit(h)}>Edit</button></td>
                 <td><button type="button" onClick={() => release(h.hold_id)}>Release</button></td>
                 <td><button type="button" onClick={() => dispatchFromHold(h)}>Dispatch</button></td>
               </tr>
             ))}
             {holds.length === 0 && (
-              <tr><td colSpan={8}>No active holds.</td></tr>
+              <tr><td colSpan={9}>No active holds.</td></tr>
             )}
           </tbody>
         </table>

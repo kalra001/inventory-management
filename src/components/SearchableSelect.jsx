@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function SearchableSelect({ options, value, onChange, placeholder, required, disabled }) {
+export default function SearchableSelect({ options, value, onChange, placeholder, required, disabled, className }) {
   const [searchText, setSearchText] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const wrapperRef = useRef(null)
 
-  const selected = options.find((o) => String(o.value) === String(value))
+  // an empty value always means "nothing chosen" — show the placeholder,
+  // even if an option happens to use '' as its own value (e.g. a "None" entry)
+  const selected = value ? options.find((o) => String(o.value) === String(value)) : undefined
 
   useEffect(() => {
     setSearchText(selected ? selected.label : '')
@@ -32,7 +34,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   }
 
   return (
-    <div className="searchable-select" ref={wrapperRef}>
+    <div className={`searchable-select${className ? ` ${className}` : ''}`} ref={wrapperRef}>
       <input
         type="text"
         value={searchText}

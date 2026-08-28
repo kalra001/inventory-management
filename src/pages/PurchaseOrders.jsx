@@ -85,6 +85,11 @@ export default function PurchaseOrders() {
     [products]
   )
 
+  const poOptions = useMemo(
+    () => pos.map((po) => ({ value: po.po_id, label: po.so_number })),
+    [pos]
+  )
+
   useEffect(() => {
     loadProducts()
     loadPos()
@@ -371,15 +376,18 @@ export default function PurchaseOrders() {
       {error && <p className="error">{error}</p>}
 
       <h2>{editingPoItemId ? 'Edit item' : 'Add item to an existing SO'}</h2>
-      <form className="stack-form" onSubmit={handleAddItem}>
+      <form className="stack-form compact-form" onSubmit={handleAddItem}>
         <label>
           SO Number
-          <select value={addItemPoId} onChange={(e) => setAddItemPoId(e.target.value)} required disabled={!!editingPoItemId}>
-            <option value="" disabled>Select SO…</option>
-            {pos.map((po) => (
-              <option key={po.po_id} value={po.po_id}>{po.so_number}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={poOptions}
+            value={addItemPoId}
+            onChange={setAddItemPoId}
+            placeholder="Type to search…"
+            required
+            disabled={!!editingPoItemId}
+            className="narrow"
+          />
         </label>
         <label>
           Product
@@ -389,6 +397,7 @@ export default function PurchaseOrders() {
             onChange={(v) => setNewItem((r) => ({ ...r, product_id: v }))}
             placeholder="Type to search…"
             required
+            className="narrow"
           />
         </label>
         <label>

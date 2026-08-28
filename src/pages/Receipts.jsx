@@ -46,6 +46,19 @@ export default function Receipts() {
     [products]
   )
 
+  const poOptions = useMemo(
+    () => [{ value: '', label: 'No PO' }, ...pos.map((po) => ({ value: po.po_id, label: po.so_number }))],
+    [pos]
+  )
+
+  const poItemOptions = useMemo(
+    () => poItems.map((i) => ({
+      value: i.po_item_id,
+      label: `${i.product_id} — ${i.variety} (balance ${i.balance_kg} kg)${i.closed ? ' (closed)' : ''}`,
+    })),
+    [poItems]
+  )
+
   useEffect(() => {
     loadProducts()
     loadPos()
@@ -180,24 +193,23 @@ export default function Receipts() {
       <form className="stack-form" onSubmit={handleSubmit}>
         <label>
           Purchase Order (optional)
-          <select value={form.po_id} onChange={(e) => updateField('po_id', e.target.value)}>
-            <option value="">No PO</option>
-            {pos.map((po) => (
-              <option key={po.po_id} value={po.po_id}>{po.so_number}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={poOptions}
+            value={form.po_id}
+            onChange={(v) => updateField('po_id', v)}
+            placeholder="Type to search…"
+            className="narrow"
+          />
         </label>
         {form.po_id && (
           <label>
             PO Item
-            <select value={form.po_item_id} onChange={(e) => selectPoItem(e.target.value)}>
-              <option value="">Select item…</option>
-              {poItems.map((i) => (
-                <option key={i.po_item_id} value={i.po_item_id}>
-                  {i.product_id} — {i.variety} (balance {i.balance_kg} kg){i.closed ? ' (closed)' : ''}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={poItemOptions}
+              value={form.po_item_id}
+              onChange={selectPoItem}
+              placeholder="Type to search…"
+            />
           </label>
         )}
         <label>

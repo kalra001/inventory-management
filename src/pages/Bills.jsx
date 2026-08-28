@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, addMonths, todayStr, GST_PRESETS, presetForRate } from '../lib/csv'
+import SearchableSelect from '../components/SearchableSelect'
 
 const emptyBillForm = { bill_number: '', bill_date: todayStr(), remarks: '', gst_preset: '18', gst_custom: '' }
 const emptyBillItemForm = { bill_id: '', po_item_id: '', qty_kg: '', mill_billed_amount: '' }
@@ -53,6 +54,19 @@ export default function Bills() {
   const [reportError, setReportError] = useState(null)
   const [reportBusy, setReportBusy] = useState(false)
   const [creditDrafts, setCreditDrafts] = useState({})
+
+  const billOptions = useMemo(
+    () => bills.map((b) => ({ value: b.bill_id, label: `${b.bill_number} (${b.bill_date})` })),
+    [bills]
+  )
+
+  const poItemOptions = useMemo(
+    () => poItems.map((i) => ({
+      value: i.po_item_id,
+      label: `${i.so_number} — ${i.product_id} — ${i.variety} (received ${i.received_kg} kg, actual price ${i.actual_price_per_kg}/kg)${i.closed ? ' (closed)' : ''}`,
+    })),
+    [poItems]
+  )
 
   useEffect(() => {
     loadBills()
@@ -303,23 +317,25 @@ export default function Bills() {
       <form className="stack-form" onSubmit={handleSaveBillItem}>
         <label>
           Bill
-          <select value={billItemForm.bill_id} onChange={(e) => updateBillItemField('bill_id', e.target.value)} required disabled={!!editingBillItemId}>
-            <option value="" disabled>Select bill…</option>
-            {bills.map((b) => (
-              <option key={b.bill_id} value={b.bill_id}>{b.bill_number} ({b.bill_date})</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={billOptions}
+            value={billItemForm.bill_id}
+            onChange={(v) => updateBillItemField('bill_id', v)}
+            placeholder="Type to search…"
+            required
+            disabled={!!editingBillItemId}
+          />
         </label>
         <label>
           PO Item
-          <select value={billItemForm.po_item_id} onChange={(e) => selectPoItem(e.target.value)} required disabled={!!editingBillItemId}>
-            <option value="" disabled>Select item…</option>
-            {poItems.map((i) => (
-              <option key={i.po_item_id} value={i.po_item_id}>
-                {i.so_number} — {i.product_id} — {i.variety} (received {i.received_kg} kg, actual price {i.actual_price_per_kg}/kg){i.closed ? ' (closed)' : ''}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={poItemOptions}
+            value={billItemForm.po_item_id}
+            onChange={selectPoItem}
+            placeholder="Type to search…"
+            required
+            disabled={!!editingBillItemId}
+          />
         </label>
         <label>
           Qty (kg)
