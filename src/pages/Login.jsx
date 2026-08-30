@@ -16,9 +16,14 @@ export default function Login() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setSubmitting(false)
-    if (error) setError(error.message)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setError(error.message)
+    } catch (err) {
+      setError(`Could not reach the server (${err.message}). Check your internet connection and try again.`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

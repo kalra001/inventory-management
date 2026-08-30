@@ -395,6 +395,106 @@ left join (
 ) charges on charges.invoice_id = ki.invoice_id;
 
 -- ============================================================
+-- Reel Stock — separate from sheet/packet stock. Each reel is a
+-- distinct physical item (not pooled like products): it shrinks in
+-- size/weight as it gets cut down over one or more dispatches, until
+-- a 'full' dispatch consumes whatever remains and closes it out.
+-- ============================================================
+create table public.reel_receipts (
+  reel_id bigint generated always as identity primary key,
+  reel_number text not null unique,
+  quality text not null,
+  gsm numeric,
+  size_cm numeric not null check (size_cm > 0),
+  size_in numeric,
+  gross_weight numeric not null check (gross_weight > 0),
+  kanta_weight numeric not null check (kanta_weight > 0),
+  cutting_name text,
+  date date not null default current_date,
+  remarks text,
+  edited_by uuid references public.profiles (id) default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+-- one row per dispatch event against a reel. 'partial' leaves the reel
+-- open with reduced remaining_* values (the new current state); 'full'
+-- consumes whatever was left and closes the reel out.
+create table public.reel_dispatches (
+  reel_dispatch_id bigint generated always as identity primary key,
+  reel_number text not null references public.reel_receipts (reel_number),
+  date date not null default current_date,
+  dispatch_type text not null check (dispatch_type in ('full', 'partial')),
+  sold_form text not null check (sold_form in ('reel', 'cutting')),
+  remaining_size_cm numeric check (remaining_size_cm >= 0),
+  remaining_gross_weight numeric check (remaining_gross_weight >= 0),
+  remaining_kanta_weight numeric check (remaining_kanta_weight >= 0),
+  cutting_name text,
+  -- sold as a whole reel: sold_to/kanta_weight live here directly.
+  -- sold as cutting: they're null here — the sale is broken out per cut
+  -- size/client in reel_dispatch_cuts instead.
+  sold_to text,
+  kanta_weight numeric check (kanta_weight > 0),
+  remarks text,
+  edited_by uuid references public.profiles (id) default auth.uid(),
+  created_at timestamptz not null default now(),
+  check (
+    (dispatch_type = 'full' and remaining_size_cm is null and remaining_gross_weight is null and remaining_kanta_weight is null)
+    or
+    (dispatch_type = 'partial' and remaining_size_cm is not null and remaining_gross_weight is not null and remaining_kanta_weight is not null)
+  ),
+  check (
+    (sold_form = 'reel' and sold_to is not null and kanta_weight is not null)
+    or
+    (sold_form = 'cutting' and sold_to is null and kanta_weight is null)
+  )
+);
+
+-- one row per cut size/client when a dispatch's sold_form is 'cutting' —
+-- a single reel (or piece of one) can be cut into several different
+-- sheet sizes and sold to several different clients in one dispatch.
+create table public.reel_dispatch_cuts (
+  cut_id bigint generated always as identity primary key,
+  reel_dispatch_id bigint not null references public.reel_dispatches (reel_dispatch_id),
+  cut_size_cm text not null,
+  weight_kg numeric not null check (weight_kg > 0),
+  sold_to text not null,
+  remarks text,
+  edited_by uuid references public.profiles (id) default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+-- current state per reel (computed): whatever the latest dispatch left
+-- behind, or the as-received values if it's never been dispatched.
+-- Reels whose latest dispatch was 'full' are closed and drop out here.
+create view public.reel_stock
+with (security_invoker = true) as
+select
+  rr.reel_id,
+  rr.reel_number,
+  rr.quality,
+  rr.gsm,
+  coalesce(ld.remaining_size_cm, rr.size_cm) as size_cm,
+  case
+    when ld.remaining_size_cm is not null and rr.size_cm > 0
+      then round(rr.size_in * ld.remaining_size_cm / rr.size_cm, 3)
+    else rr.size_in
+  end as size_in,
+  coalesce(ld.remaining_gross_weight, rr.gross_weight) as gross_weight,
+  coalesce(ld.remaining_kanta_weight, rr.kanta_weight) as kanta_weight,
+  coalesce(ld.cutting_name, rr.cutting_name) as cutting_name,
+  rr.date as received_date,
+  ld.date as last_dispatch_date
+from public.reel_receipts rr
+left join lateral (
+  select *
+  from public.reel_dispatches d
+  where d.reel_number = rr.reel_number
+  order by d.reel_dispatch_id desc
+  limit 1
+) ld on true
+where ld.reel_dispatch_id is null or ld.dispatch_type = 'partial';
+
+-- ============================================================
 -- Row Level Security
 -- Simple model for a 10-person trusted internal team:
 -- any signed-in user can read/write. Tighten later per-role if needed.
@@ -412,6 +512,9 @@ alter table public.kpi_invoice_charges enable row level security;
 alter table public.receipts enable row level security;
 alter table public.dispatches enable row level security;
 alter table public.holds enable row level security;
+alter table public.reel_receipts enable row level security;
+alter table public.reel_dispatches enable row level security;
+alter table public.reel_dispatch_cuts enable row level security;
 
 create policy "profiles: read all" on public.profiles
   for select using (auth.role() = 'authenticated');
@@ -478,6 +581,21 @@ create policy "holds: read" on public.holds
 create policy "holds: write" on public.holds
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+create policy "reel_receipts: read" on public.reel_receipts
+  for select using (auth.role() = 'authenticated');
+create policy "reel_receipts: write" on public.reel_receipts
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "reel_dispatches: read" on public.reel_dispatches
+  for select using (auth.role() = 'authenticated');
+create policy "reel_dispatches: write" on public.reel_dispatches
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "reel_dispatch_cuts: read" on public.reel_dispatch_cuts
+  for select using (auth.role() = 'authenticated');
+create policy "reel_dispatch_cuts: write" on public.reel_dispatch_cuts
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 -- ============================================================
 -- Grants
 -- RLS policies above control *which rows* are visible; Postgres also
@@ -496,9 +614,13 @@ grant select, insert, update, delete on public.kpi_invoice_charges to authentica
 grant select, insert, update, delete on public.receipts to authenticated;
 grant select, insert, update, delete on public.dispatches to authenticated;
 grant select, insert, update, delete on public.holds to authenticated;
+grant select, insert, update, delete on public.reel_receipts to authenticated;
+grant select, insert, update, delete on public.reel_dispatches to authenticated;
+grant select, insert, update, delete on public.reel_dispatch_cuts to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select on public.stock_summary to authenticated;
 grant select on public.po_item_status to authenticated;
 grant select on public.bill_item_status to authenticated;
 grant select on public.bill_summary to authenticated;
 grant select on public.kpi_invoice_summary to authenticated;
+grant select on public.reel_stock to authenticated;

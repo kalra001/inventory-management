@@ -15,6 +15,9 @@ export default function NavBar() {
       <NavLink to="/kpi-purchases">KPI Purchases</NavLink>
       <NavLink to="/traders">Traders</NavLink>
       <NavLink to="/products">Products</NavLink>
+      <NavLink to="/reel-stock">Reel Stock</NavLink>
+      <NavLink to="/reel-receipts">Reel Receipts</NavLink>
+      <NavLink to="/reel-dispatches">Reel Dispatches</NavLink>
       <button className="link-button" onClick={signOut}>Log out</button>
     </nav>
   )
