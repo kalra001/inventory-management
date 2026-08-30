@@ -99,6 +99,40 @@ th { background: #f1f5f9; }
 .low-stock { color: #b91c1c; font-weight: 600; }
 .archived-row { opacity: 0.55; }
 
+/* on narrow screens, card-table rows stack into cards instead of scrolling
+   sideways — each cell's column header shows as a label via data-label */
+@media (max-width: 640px) {
+  table.card-table thead { display: none; }
+  table.card-table, table.card-table tbody, table.card-table tr, table.card-table td {
+    display: block;
+    width: 100%;
+  }
+  table.card-table tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    background: #fff;
+  }
+  table.card-table td {
+    border: none;
+    padding: 0.3rem 0;
+    white-space: normal;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    text-align: right;
+  }
+  table.card-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #475569;
+    flex-shrink: 0;
+    text-align: left;
+  }
+}
+
 .invoice-block {
   background: #fff;
   border: 1px solid #e2e8f0;

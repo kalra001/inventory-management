@@ -35,7 +35,7 @@ function matchesSearch(row, q) {
 function StockTable({ rows, emptyMessage }) {
   return (
     <div className="table-scroll">
-      <table>
+      <table className="card-table">
         <thead>
           <tr>
             <th>Product ID</th>
@@ -54,17 +54,17 @@ function StockTable({ rows, emptyMessage }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.product_id}>
-              <td>{r.product_id}</td>
-              <td>{r.variety}</td>
-              <td>{r.gsm}</td>
-              <td>{r.size_cm}</td>
-              <td>{r.size_in}</td>
-              <td>{r.packet_weight}</td>
-              <td>{r.packets_in_stock}</td>
-              <td>{r.quantity_kg}</td>
-              <td>{r.packets_on_hold}</td>
-              <td className={r.packets_available <= 0 ? 'low-stock' : ''}>{r.packets_available}</td>
-              <td className={r.quantity_after_hold_kg <= 0 ? 'low-stock' : ''}>{r.quantity_after_hold_kg}</td>
+              <td data-label="Product ID">{r.product_id}</td>
+              <td data-label="Variety">{r.variety}</td>
+              <td data-label="GSM">{r.gsm}</td>
+              <td data-label="Size (cm)">{r.size_cm}</td>
+              <td data-label="Size (in)">{r.size_in}</td>
+              <td data-label="Packet Wt">{r.packet_weight}</td>
+              <td data-label="In Stock">{r.packets_in_stock}</td>
+              <td data-label="Quantity (kg)">{r.quantity_kg}</td>
+              <td data-label="On Hold">{r.packets_on_hold}</td>
+              <td data-label="Available after Hold" className={r.packets_available <= 0 ? 'low-stock' : ''}>{r.packets_available}</td>
+              <td data-label="Quantity after Hold" className={r.quantity_after_hold_kg <= 0 ? 'low-stock' : ''}>{r.quantity_after_hold_kg}</td>
             </tr>
           ))}
           {rows.length === 0 && (

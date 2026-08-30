@@ -197,7 +197,7 @@ export default function Holds() {
 
       <h2>Active holds</h2>
       <div className="table-scroll">
-        <table>
+        <table className="card-table">
           <thead>
             <tr>
               <th>Product</th><th>Packets</th><th>Held By</th><th>Date</th><th>Note</th><th>Placed By</th><th></th><th></th><th></th>
@@ -206,12 +206,12 @@ export default function Holds() {
           <tbody>
             {holds.map((h) => (
               <tr key={h.hold_id}>
-                <td>{h.products?.product_id} — {h.products?.variety}</td>
-                <td>{h.packets}</td>
-                <td>{h.held_by}</td>
-                <td>{h.held_date}</td>
-                <td>{h.note}</td>
-                <td>{h.placed_by?.name}</td>
+                <td data-label="Product">{h.products?.product_id} — {h.products?.variety}</td>
+                <td data-label="Packets">{h.packets}</td>
+                <td data-label="Held By">{h.held_by}</td>
+                <td data-label="Date">{h.held_date}</td>
+                <td data-label="Note">{h.note}</td>
+                <td data-label="Placed By">{h.placed_by?.name}</td>
                 <td><button type="button" onClick={() => startEdit(h)}>Edit</button></td>
                 <td><button type="button" onClick={() => release(h.hold_id)}>Release</button></td>
                 <td><button type="button" onClick={() => dispatchFromHold(h)}>Dispatch</button></td>
@@ -226,7 +226,7 @@ export default function Holds() {
 
       <h2>Recently released holds (last 24 hours)</h2>
       <div className="table-scroll">
-        <table>
+        <table className="card-table">
           <thead>
             <tr>
               <th>Product</th><th>Packets</th><th>Held By</th><th>Released Date</th><th>Released By</th>
@@ -235,11 +235,11 @@ export default function Holds() {
           <tbody>
             {released.map((h) => (
               <tr key={h.hold_id}>
-                <td>{h.products?.product_id} — {h.products?.variety}</td>
-                <td>{h.packets}</td>
-                <td>{h.held_by}</td>
-                <td>{h.released_date}</td>
-                <td>{h.released_by_user?.name}</td>
+                <td data-label="Product">{h.products?.product_id} — {h.products?.variety}</td>
+                <td data-label="Packets">{h.packets}</td>
+                <td data-label="Held By">{h.held_by}</td>
+                <td data-label="Released Date">{h.released_date}</td>
+                <td data-label="Released By">{h.released_by_user?.name}</td>
               </tr>
             ))}
             {released.length === 0 && (

@@ -282,7 +282,7 @@ export default function Dispatches() {
 
       <h2>Recent dispatches</h2>
       <div className="table-scroll">
-        <table>
+        <table className="card-table">
           <thead>
             <tr>
               <th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th>
@@ -291,17 +291,17 @@ export default function Dispatches() {
           <tbody>
             {recent.map((r) => (
               <tr key={r.dispatch_id}>
-                <td>{r.date}</td>
-                <td>{r.products?.product_id} — {r.products?.variety}</td>
-                <td>{r.products?.size_cm}</td>
-                <td>{r.products?.size_in}</td>
-                <td>{r.products?.packet_weight}</td>
-                <td>{r.packets}</td>
-                <td>{r.products?.packet_weight != null ? r.packets * r.products.packet_weight : ''}</td>
-                <td>{r.vehicle}</td>
-                <td>{r.challan_no}</td>
-                <td>{r.remarks}</td>
-                <td>{r.profiles?.name}</td>
+                <td data-label="Date">{r.date}</td>
+                <td data-label="Product">{r.products?.product_id} — {r.products?.variety}</td>
+                <td data-label="Size (cm)">{r.products?.size_cm}</td>
+                <td data-label="Size (in)">{r.products?.size_in}</td>
+                <td data-label="Packet Wt">{r.products?.packet_weight}</td>
+                <td data-label="Packets">{r.packets}</td>
+                <td data-label="Quantity (kg)">{r.products?.packet_weight != null ? r.packets * r.products.packet_weight : ''}</td>
+                <td data-label="Vehicle">{r.vehicle}</td>
+                <td data-label="Challan No">{r.challan_no}</td>
+                <td data-label="Remarks">{r.remarks}</td>
+                <td data-label="Edited By">{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>
               </tr>
             ))}
