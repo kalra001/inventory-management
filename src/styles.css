@@ -202,6 +202,18 @@ th { background: #f1f5f9; }
 .error { color: #b91c1c; }
 .hint { color: #64748b; font-size: 0.85rem; }
 
+.ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
 .login-page {
   display: flex;
   align-items: center;

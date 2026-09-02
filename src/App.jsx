@@ -11,6 +11,7 @@ import Bills from './pages/Bills'
 import KpiPurchases from './pages/KpiPurchases'
 import Traders from './pages/Traders'
 import Products from './pages/Products'
+import ProductLedger from './pages/ProductLedger'
 import ReelStock from './pages/ReelStock'
 import ReelReceipts from './pages/ReelReceipts'
 import ReelDispatches from './pages/ReelDispatches'
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/kpi-purchases" element={<ProtectedRoute><Layout><KpiPurchases /></Layout></ProtectedRoute>} />
         <Route path="/traders" element={<ProtectedRoute><Layout><Traders /></Layout></ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><Layout><Products /></Layout></ProtectedRoute>} />
+        <Route path="/product-ledger" element={<ProtectedRoute><Layout><ProductLedger /></Layout></ProtectedRoute>} />
         <Route path="/reel-stock" element={<ProtectedRoute><Layout><ReelStock /></Layout></ProtectedRoute>} />
         <Route path="/reel-receipts" element={<ProtectedRoute><Layout><ReelReceipts /></Layout></ProtectedRoute>} />
         <Route path="/reel-dispatches" element={<ProtectedRoute><Layout><ReelDispatches /></Layout></ProtectedRoute>} />
