@@ -10,6 +10,7 @@ const emptyForm = {
   size_cm: '',
   gross_weight: '',
   kanta_weight: '',
+  net_weight: '',
   cutting_name: '',
   date: todayStr(),
   remarks: '',
@@ -27,6 +28,7 @@ const REPORT_COLUMNS = [
   { label: 'Size (in)', value: (r) => r.size_in },
   { label: 'Gross Weight', value: (r) => r.gross_weight },
   { label: 'Kanta Weight', value: (r) => r.kanta_weight },
+  { label: 'Net Weight', value: (r) => r.net_weight },
   { label: 'Cutting / Location', value: (r) => r.cutting_name },
   { label: 'Date', value: (r) => r.date },
   { label: 'Remarks', value: (r) => r.remarks },
@@ -57,7 +59,7 @@ export default function ReelReceipts() {
   async function loadRecent() {
     const { data, error } = await supabase
       .from('reel_receipts')
-      .select('reel_id, reel_number, quality, gsm, size_cm, size_in, gross_weight, kanta_weight, cutting_name, date, remarks, profiles(name)')
+      .select('reel_id, reel_number, quality, gsm, size_cm, size_in, gross_weight, kanta_weight, net_weight, cutting_name, date, remarks, profiles(name)')
       .order('reel_id', { ascending: false })
       .limit(25)
     if (error) setError(error.message)
@@ -77,6 +79,7 @@ export default function ReelReceipts() {
       size_cm: String(r.size_cm),
       gross_weight: String(r.gross_weight),
       kanta_weight: String(r.kanta_weight),
+      net_weight: r.net_weight != null ? String(r.net_weight) : '',
       cutting_name: r.cutting_name || '',
       date: r.date,
       remarks: r.remarks || '',
@@ -100,6 +103,7 @@ export default function ReelReceipts() {
       size_in: sizeIn,
       gross_weight: Number(form.gross_weight),
       kanta_weight: Number(form.kanta_weight),
+      net_weight: form.net_weight ? Number(form.net_weight) : null,
       cutting_name: form.cutting_name || null,
       date: form.date,
       remarks: form.remarks || null,
@@ -142,7 +146,7 @@ export default function ReelReceipts() {
     setReportBusy(true)
     const { data, error } = await supabase
       .from('reel_receipts')
-      .select('reel_number, quality, gsm, size_cm, size_in, gross_weight, kanta_weight, cutting_name, date, remarks, profiles(name)')
+      .select('reel_number, quality, gsm, size_cm, size_in, gross_weight, kanta_weight, net_weight, cutting_name, date, remarks, profiles(name)')
       .gte('date', reportFrom)
       .lte('date', reportTo)
       .order('date', { ascending: true })
@@ -190,6 +194,10 @@ export default function ReelReceipts() {
           <input type="number" min="0.01" step="any" value={form.kanta_weight} onChange={(e) => updateField('kanta_weight', e.target.value)} required />
         </label>
         <label>
+          Net Weight (kg)
+          <input type="number" min="0.01" step="any" value={form.net_weight} onChange={(e) => updateField('net_weight', e.target.value)} required />
+        </label>
+        <label>
           Cutting / Location
           <input value={form.cutting_name} onChange={(e) => updateField('cutting_name', e.target.value)} />
         </label>
@@ -229,7 +237,7 @@ export default function ReelReceipts() {
         <table>
           <thead>
             <tr>
-              <th>Reel Number</th><th>Quality</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Gross Wt</th><th>Kanta Wt</th><th>Cutting/Location</th><th>Date</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>Reel Number</th><th>Quality</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Gross Wt</th><th>Kanta Wt</th><th>Net Wt</th><th>Cutting/Location</th><th>Date</th><th>Remarks</th><th>Edited By</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -242,6 +250,7 @@ export default function ReelReceipts() {
                 <td>{r.size_in}</td>
                 <td>{r.gross_weight}</td>
                 <td>{r.kanta_weight}</td>
+                <td>{r.net_weight}</td>
                 <td>{r.cutting_name}</td>
                 <td>{r.date}</td>
                 <td>{r.remarks}</td>
@@ -250,7 +259,7 @@ export default function ReelReceipts() {
               </tr>
             ))}
             {recent.length === 0 && (
-              <tr><td colSpan={12}>No reel receipts yet.</td></tr>
+              <tr><td colSpan={13}>No reel receipts yet.</td></tr>
             )}
           </tbody>
         </table>

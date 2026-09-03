@@ -409,6 +409,10 @@ create table public.reel_receipts (
   size_in numeric,
   gross_weight numeric not null check (gross_weight > 0),
   kanta_weight numeric not null check (kanta_weight > 0),
+  -- theoretical/invoice net weight, entered separately (not derived from
+  -- gross) — the baseline "no wastage" figure a dispatch's actual kanta
+  -- weight gets reconciled against
+  net_weight numeric check (net_weight > 0),
   cutting_name text,
   date date not null default current_date,
   remarks text,
@@ -428,7 +432,13 @@ create table public.reel_dispatches (
   remaining_size_cm numeric check (remaining_size_cm >= 0),
   remaining_gross_weight numeric check (remaining_gross_weight >= 0),
   remaining_kanta_weight numeric check (remaining_kanta_weight >= 0),
+  -- proportionally scaled like remaining_gross/kanta_weight, but nullable
+  -- on its own since older reels received before net_weight existed have
+  -- no baseline to scale from
+  remaining_net_weight numeric check (remaining_net_weight >= 0),
   cutting_name text,
+  -- which cutting job this was done under, when sold_form is 'cutting'
+  job_card_number text,
   -- sold as a whole reel: sold_to/kanta_weight live here directly.
   -- sold as cutting: they're null here — the sale is broken out per cut
   -- size/client in reel_dispatch_cuts instead.
@@ -457,6 +467,11 @@ create table public.reel_dispatch_cuts (
   reel_dispatch_id bigint not null references public.reel_dispatches (reel_dispatch_id),
   cut_size_cm text not null,
   weight_kg numeric not null check (weight_kg > 0),
+  bundle_count numeric check (bundle_count > 0),
+  sheets_per_bundle numeric check (sheets_per_bundle > 0),
+  -- loose sheets left over that don't make up a full bundle, e.g.
+  -- "10 bundles x 100 sheets + 80 sheets" — extra_sheets = 80
+  extra_sheets numeric check (extra_sheets > 0),
   sold_to text not null,
   remarks text,
   edited_by uuid references public.profiles (id) default auth.uid(),
@@ -483,7 +498,8 @@ select
   coalesce(ld.remaining_kanta_weight, rr.kanta_weight) as kanta_weight,
   coalesce(ld.cutting_name, rr.cutting_name) as cutting_name,
   rr.date as received_date,
-  ld.date as last_dispatch_date
+  ld.date as last_dispatch_date,
+  coalesce(ld.remaining_net_weight, rr.net_weight) as net_weight
 from public.reel_receipts rr
 left join lateral (
   select *
@@ -493,6 +509,39 @@ left join lateral (
   limit 1
 ) ld on true
 where ld.reel_dispatch_id is null or ld.dispatch_type = 'partial';
+
+-- per-dispatch wastage check: the reel's net weight baseline just before
+-- this dispatch (previous dispatch's remaining, or the receipt if none),
+-- vs what was actually weighed out (kanta_weight, or the sum across cut
+-- sizes/clients when sold as cutting). material_diff < 0 = shortage
+-- (wastage); > 0 = came out heavier than expected (material over).
+create view public.reel_dispatch_status
+with (security_invoker = true) as
+select
+  d.reel_dispatch_id,
+  d.reel_number,
+  d.date,
+  d.dispatch_type,
+  d.sold_form,
+  coalesce(prior.net_weight, rr.net_weight) as baseline_net_weight,
+  coalesce(prior.net_weight, rr.net_weight) - coalesce(d.remaining_net_weight, 0) as expected_net_weight_dispatched,
+  coalesce(d.kanta_weight, cuts.total_kanta) as actual_kanta_sold,
+  coalesce(d.kanta_weight, cuts.total_kanta)
+    - (coalesce(prior.net_weight, rr.net_weight) - coalesce(d.remaining_net_weight, 0)) as material_diff
+from public.reel_dispatches d
+join public.reel_receipts rr on rr.reel_number = d.reel_number
+left join lateral (
+  select pd.remaining_net_weight as net_weight
+  from public.reel_dispatches pd
+  where pd.reel_number = d.reel_number and pd.reel_dispatch_id < d.reel_dispatch_id
+  order by pd.reel_dispatch_id desc
+  limit 1
+) prior on true
+left join (
+  select reel_dispatch_id, sum(weight_kg) as total_kanta
+  from public.reel_dispatch_cuts
+  group by reel_dispatch_id
+) cuts on cuts.reel_dispatch_id = d.reel_dispatch_id;
 
 -- ============================================================
 -- Row Level Security
@@ -624,3 +673,4 @@ grant select on public.bill_item_status to authenticated;
 grant select on public.bill_summary to authenticated;
 grant select on public.kpi_invoice_summary to authenticated;
 grant select on public.reel_stock to authenticated;
+grant select on public.reel_dispatch_status to authenticated;

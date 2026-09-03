@@ -10,6 +10,7 @@ const REPORT_COLUMNS = [
   { label: 'Size (in)', value: (r) => r.size_in },
   { label: 'Gross Weight', value: (r) => r.gross_weight },
   { label: 'Kanta Weight', value: (r) => r.kanta_weight },
+  { label: 'Net Weight', value: (r) => r.net_weight },
   { label: 'Cutting / Location', value: (r) => r.cutting_name },
   { label: 'Received Date', value: (r) => r.received_date },
   { label: 'Last Dispatch Date', value: (r) => r.last_dispatch_date },
@@ -71,7 +72,7 @@ export default function ReelStock() {
           <table>
             <thead>
               <tr>
-                <th>Reel Number</th><th>Quality</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Gross Wt</th><th>Kanta Wt</th><th>Cutting/Location</th><th>Received</th><th>Last Dispatch</th>
+                <th>Reel Number</th><th>Quality</th><th>GSM</th><th>Size (cm)</th><th>Size (in)</th><th>Gross Wt</th><th>Kanta Wt</th><th>Net Wt</th><th>Cutting/Location</th><th>Received</th><th>Last Dispatch</th>
               </tr>
             </thead>
             <tbody>
@@ -84,13 +85,14 @@ export default function ReelStock() {
                   <td>{r.size_in}</td>
                   <td>{r.gross_weight}</td>
                   <td>{r.kanta_weight}</td>
+                  <td>{r.net_weight}</td>
                   <td>{r.cutting_name}</td>
                   <td>{r.received_date}</td>
                   <td>{r.last_dispatch_date || '—'}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10}>No reels in stock.</td></tr>
+                <tr><td colSpan={11}>No reels in stock.</td></tr>
               )}
             </tbody>
           </table>

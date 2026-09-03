@@ -11,15 +11,22 @@ const emptyForm = {
   sold_form: 'reel',
   remaining_size_cm: '',
   cutting_name: '',
+  job_card_number: '',
   sold_to: '',
   kanta_weight: '',
   remarks: '',
 }
 
-const emptyCutItem = { cut_size_cm: '', weight_kg: '', sold_to: '', remarks: '' }
+const emptyCutItem = { cut_size_cm: '', weight_kg: '', bundle_count: '', sheets_per_bundle: '', extra_sheets: '', sold_to: '', remarks: '' }
 
 function round3(n) {
   return Math.round(n * 1000) / 1000
+}
+
+// e.g. 10 bundles x 100 sheets + 80 loose sheets = 1080 total
+function totalSheets(bundleCount, sheetsPerBundle, extraSheets) {
+  if (bundleCount == null && sheetsPerBundle == null && extraSheets == null) return null
+  return (Number(bundleCount) || 0) * (Number(sheetsPerBundle) || 0) + (Number(extraSheets) || 0)
 }
 
 function cutReportRows(dispatches) {
@@ -36,12 +43,19 @@ function cutReportRows(dispatches) {
           remaining_size_cm: d.remaining_size_cm,
           remaining_gross_weight: d.remaining_gross_weight,
           remaining_kanta_weight: d.remaining_kanta_weight,
+          remaining_net_weight: d.remaining_net_weight,
           cut_size_cm: c.cut_size_cm,
+          bundle_count: c.bundle_count,
+          sheets_per_bundle: c.sheets_per_bundle,
+          extra_sheets: c.extra_sheets,
+          total_sheets: totalSheets(c.bundle_count, c.sheets_per_bundle, c.extra_sheets),
           sold_to: c.sold_to,
           weight_kg: c.weight_kg,
           cutting_name: d.cutting_name,
+          job_card_number: d.job_card_number,
           remarks: c.remarks || d.remarks,
           edited_by_name: d.profiles?.name,
+          material_diff: d.reel_dispatch_status?.material_diff,
         })
       }
     } else {
@@ -54,12 +68,19 @@ function cutReportRows(dispatches) {
         remaining_size_cm: d.remaining_size_cm,
         remaining_gross_weight: d.remaining_gross_weight,
         remaining_kanta_weight: d.remaining_kanta_weight,
+        remaining_net_weight: d.remaining_net_weight,
         cut_size_cm: null,
+        bundle_count: null,
+        sheets_per_bundle: null,
+        extra_sheets: null,
+        total_sheets: null,
         sold_to: d.sold_to,
         weight_kg: d.kanta_weight,
         cutting_name: d.cutting_name,
+        job_card_number: d.job_card_number,
         remarks: d.remarks,
         edited_by_name: d.profiles?.name,
+        material_diff: d.reel_dispatch_status?.material_diff,
       })
     }
   }
@@ -73,18 +94,25 @@ const REPORT_COLUMNS = [
   { label: 'Type', value: (r) => r.dispatch_type },
   { label: 'Sold As', value: (r) => (r.sold_form === 'cutting' ? 'Cut into sheets' : 'Reel') },
   { label: 'Cut Size (cm)', value: (r) => r.cut_size_cm },
+  { label: 'Bundles', value: (r) => r.bundle_count },
+  { label: 'Sheets/Bundle', value: (r) => r.sheets_per_bundle },
+  { label: 'Extra Sheets', value: (r) => r.extra_sheets },
+  { label: 'Total Sheets', value: (r) => r.total_sheets },
   { label: 'Remaining Size (cm)', value: (r) => r.remaining_size_cm },
   { label: 'Remaining Gross Weight', value: (r) => r.remaining_gross_weight },
   { label: 'Remaining Kanta Weight', value: (r) => r.remaining_kanta_weight },
+  { label: 'Remaining Net Weight', value: (r) => r.remaining_net_weight },
   { label: 'Sold To', value: (r) => r.sold_to },
   { label: 'Kanta Weight (kg)', value: (r) => r.weight_kg },
   { label: 'Cutting / Location', value: (r) => r.cutting_name },
+  { label: 'Job Card Number', value: (r) => r.job_card_number },
+  { label: 'Material +/- (kg)', value: (r) => r.material_diff },
   { label: 'Remarks', value: (r) => r.remarks },
   { label: 'Edited By', value: (r) => r.edited_by_name },
 ]
 
 const DISPATCH_SELECT =
-  'reel_dispatch_id, reel_number, date, dispatch_type, sold_form, remaining_size_cm, remaining_gross_weight, remaining_kanta_weight, cutting_name, sold_to, kanta_weight, remarks, reel_receipts(quality, gsm), profiles(name), reel_dispatch_cuts(cut_id, cut_size_cm, weight_kg, sold_to, remarks)'
+  'reel_dispatch_id, reel_number, date, dispatch_type, sold_form, remaining_size_cm, remaining_gross_weight, remaining_kanta_weight, remaining_net_weight, cutting_name, job_card_number, sold_to, kanta_weight, remarks, reel_receipts(quality, gsm), profiles(name), reel_dispatch_cuts(cut_id, cut_size_cm, weight_kg, bundle_count, sheets_per_bundle, extra_sheets, sold_to, remarks)'
 
 export default function ReelDispatches() {
   const { user } = useAuth()
@@ -121,9 +149,11 @@ export default function ReelDispatches() {
     if (!form.remaining_size_cm || Number.isNaN(remSize) || remSize < 0 || remSize >= baseline.size_cm) return null
     const remGross = round3((baseline.gross_weight * remSize) / baseline.size_cm)
     const remKanta = round3((baseline.kanta_weight * remSize) / baseline.size_cm)
+    const remNet = baseline.net_weight != null ? round3((baseline.net_weight * remSize) / baseline.size_cm) : null
     return {
       remGross,
       remKanta,
+      remNet,
       dispatchedApproxWeight: round3(baseline.gross_weight - remGross),
     }
   }, [baseline, form.dispatch_type, form.remaining_size_cm])
@@ -144,14 +174,32 @@ export default function ReelDispatches() {
     else setReelStock(data ?? [])
   }
 
+  async function attachDispatchStatus(dispatches) {
+    if (dispatches.length === 0) return dispatches
+    const ids = dispatches.map((d) => d.reel_dispatch_id)
+    const { data, error } = await supabase
+      .from('reel_dispatch_status')
+      .select('reel_dispatch_id, material_diff')
+      .in('reel_dispatch_id', ids)
+    if (error) {
+      setError(error.message)
+      return dispatches
+    }
+    const statusById = new Map(data.map((s) => [s.reel_dispatch_id, s]))
+    return dispatches.map((d) => ({ ...d, reel_dispatch_status: statusById.get(d.reel_dispatch_id) }))
+  }
+
   async function loadRecent() {
     const { data, error } = await supabase
       .from('reel_dispatches')
       .select(DISPATCH_SELECT)
       .order('reel_dispatch_id', { ascending: false })
       .limit(25)
-    if (error) setError(error.message)
-    else setRecent(data)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setRecent(await attachDispatchStatus(data))
   }
 
   function updateField(field, value) {
@@ -197,7 +245,7 @@ export default function ReelDispatches() {
 
     const { data: prior, error: priorError } = await supabase
       .from('reel_dispatches')
-      .select('remaining_size_cm, remaining_gross_weight, remaining_kanta_weight, cutting_name')
+      .select('remaining_size_cm, remaining_gross_weight, remaining_kanta_weight, remaining_net_weight, cutting_name')
       .eq('reel_number', d.reel_number)
       .lt('reel_dispatch_id', d.reel_dispatch_id)
       .order('reel_dispatch_id', { ascending: false })
@@ -213,12 +261,13 @@ export default function ReelDispatches() {
         size_cm: prior[0].remaining_size_cm,
         gross_weight: prior[0].remaining_gross_weight,
         kanta_weight: prior[0].remaining_kanta_weight,
+        net_weight: prior[0].remaining_net_weight,
         cutting_name: prior[0].cutting_name,
       }
     } else {
       const { data: receipt, error: receiptError } = await supabase
         .from('reel_receipts')
-        .select('size_cm, gross_weight, kanta_weight, cutting_name')
+        .select('size_cm, gross_weight, kanta_weight, net_weight, cutting_name')
         .eq('reel_number', d.reel_number)
         .single()
       if (receiptError) {
@@ -238,6 +287,7 @@ export default function ReelDispatches() {
       sold_form: d.sold_form,
       remaining_size_cm: d.remaining_size_cm != null ? String(d.remaining_size_cm) : '',
       cutting_name: d.cutting_name || '',
+      job_card_number: d.job_card_number || '',
       sold_to: d.sold_to || '',
       kanta_weight: d.kanta_weight != null ? String(d.kanta_weight) : '',
       remarks: d.remarks || '',
@@ -247,6 +297,9 @@ export default function ReelDispatches() {
         ? d.reel_dispatch_cuts.map((c) => ({
             cut_size_cm: c.cut_size_cm,
             weight_kg: String(c.weight_kg),
+            bundle_count: c.bundle_count != null ? String(c.bundle_count) : '',
+            sheets_per_bundle: c.sheets_per_bundle != null ? String(c.sheets_per_bundle) : '',
+            extra_sheets: c.extra_sheets != null ? String(c.extra_sheets) : '',
             sold_to: c.sold_to,
             remarks: c.remarks || '',
           }))
@@ -268,6 +321,7 @@ export default function ReelDispatches() {
       date: form.date,
       dispatch_type: form.dispatch_type,
       sold_form: form.sold_form,
+      job_card_number: form.sold_form === 'cutting' ? (form.job_card_number || null) : null,
       remarks: form.remarks || null,
       edited_by: user.id,
     }
@@ -281,11 +335,13 @@ export default function ReelDispatches() {
       payload.remaining_size_cm = remSize
       payload.remaining_gross_weight = round3((baseline.gross_weight * remSize) / baseline.size_cm)
       payload.remaining_kanta_weight = round3((baseline.kanta_weight * remSize) / baseline.size_cm)
+      payload.remaining_net_weight = baseline.net_weight != null ? round3((baseline.net_weight * remSize) / baseline.size_cm) : null
       payload.cutting_name = form.cutting_name || baseline.cutting_name || null
     } else {
       payload.remaining_size_cm = null
       payload.remaining_gross_weight = null
       payload.remaining_kanta_weight = null
+      payload.remaining_net_weight = null
       payload.cutting_name = null
     }
 
@@ -339,6 +395,9 @@ export default function ReelDispatches() {
           reel_dispatch_id: dispatchId,
           cut_size_cm: r.cut_size_cm.trim(),
           weight_kg: Number(r.weight_kg),
+          bundle_count: r.bundle_count ? Number(r.bundle_count) : null,
+          sheets_per_bundle: r.sheets_per_bundle ? Number(r.sheets_per_bundle) : null,
+          extra_sheets: r.extra_sheets ? Number(r.extra_sheets) : null,
           sold_to: r.sold_to.trim(),
           remarks: r.remarks || null,
           edited_by: user.id,
@@ -388,7 +447,8 @@ export default function ReelDispatches() {
       setReportError(error.message)
       return
     }
-    downloadCsv(`reel-dispatches-${reportFrom}-to-${reportTo}.csv`, rowsToCsv(cutReportRows(data), REPORT_COLUMNS))
+    const withStatus = await attachDispatchStatus(data)
+    downloadCsv(`reel-dispatches-${reportFrom}-to-${reportTo}.csv`, rowsToCsv(cutReportRows(withStatus), REPORT_COLUMNS))
   }
 
   const recentRows = useMemo(() => {
@@ -429,6 +489,7 @@ export default function ReelDispatches() {
         {baseline && (
           <p className="hint">
             Currently: {baseline.size_cm} cm, gross {baseline.gross_weight} kg, kanta {baseline.kanta_weight} kg
+            {baseline.net_weight != null ? `, net ${baseline.net_weight} kg` : ''}
             {baseline.cutting_name ? ` @ ${baseline.cutting_name}` : ''}
           </p>
         )}
@@ -454,6 +515,13 @@ export default function ReelDispatches() {
           </select>
         </label>
 
+        {form.sold_form === 'cutting' && (
+          <label>
+            Job Card Number
+            <input value={form.job_card_number} onChange={(e) => updateField('job_card_number', e.target.value)} />
+          </label>
+        )}
+
         {form.dispatch_type === 'partial' && (
           <>
             <label>
@@ -476,7 +544,8 @@ export default function ReelDispatches() {
 
         {preview && (
           <p className="hint">
-            Remaining on reel: {preview.remGross} kg gross / {preview.remKanta} kg kanta.{' '}
+            Remaining on reel: {preview.remGross} kg gross / {preview.remKanta} kg kanta
+            {preview.remNet != null ? ` / ${preview.remNet} kg net` : ''}.{' '}
             Approx. weight being dispatched now: {preview.dispatchedApproxWeight} kg.
           </p>
         )}
@@ -520,6 +589,21 @@ export default function ReelDispatches() {
                 <input type="number" min="0.01" step="any" value={row.weight_kg} onChange={(e) => updateCutItem(i, 'weight_kg', e.target.value)} />
               </label>
               <label>
+                Bundles
+                <input type="number" min="0.01" step="any" value={row.bundle_count} onChange={(e) => updateCutItem(i, 'bundle_count', e.target.value)} />
+              </label>
+              <label>
+                Sheets/Bundle
+                <input type="number" min="0.01" step="any" value={row.sheets_per_bundle} onChange={(e) => updateCutItem(i, 'sheets_per_bundle', e.target.value)} />
+              </label>
+              <label>
+                Extra Sheets (loose, not a full bundle)
+                <input type="number" min="0.01" step="any" value={row.extra_sheets} onChange={(e) => updateCutItem(i, 'extra_sheets', e.target.value)} />
+              </label>
+              {totalSheets(row.bundle_count, row.sheets_per_bundle, row.extra_sheets) != null && (
+                <span className="hint">Total sheets: {totalSheets(row.bundle_count, row.sheets_per_bundle, row.extra_sheets)}</span>
+              )}
+              <label>
                 Sold To
                 <input value={row.sold_to} onChange={(e) => updateCutItem(i, 'sold_to', e.target.value)} />
               </label>
@@ -559,7 +643,7 @@ export default function ReelDispatches() {
         <table>
           <thead>
             <tr>
-              <th>Reel Number</th><th>Quality</th><th>Date</th><th>Type</th><th>Sold As</th><th>Cut Size</th><th>Remaining Size</th><th>Remaining Gross</th><th>Remaining Kanta</th><th>Sold To</th><th>Kanta Wt (sold)</th><th>Location</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>Reel Number</th><th>Quality</th><th>Date</th><th>Type</th><th>Sold As</th><th>Job Card</th><th>Cut Size</th><th>Bundles</th><th>Sheets/Bundle</th><th>Extra Sheets</th><th>Total Sheets</th><th>Remaining Size</th><th>Remaining Gross</th><th>Remaining Kanta</th><th>Remaining Net</th><th>Sold To</th><th>Kanta Wt (sold)</th><th>Location</th><th>Material +/-</th><th>Remarks</th><th>Edited By</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -570,20 +654,27 @@ export default function ReelDispatches() {
                 <td>{d.date}</td>
                 <td>{d.dispatch_type === 'full' ? 'Full' : 'Partial'}</td>
                 <td>{d.sold_form === 'cutting' ? 'Cutting' : 'Reel'}</td>
+                <td>{d.job_card_number}</td>
                 <td>{c ? c.cut_size_cm : '—'}</td>
+                <td>{c ? c.bundle_count ?? '—' : ''}</td>
+                <td>{c ? c.sheets_per_bundle ?? '—' : ''}</td>
+                <td>{c ? c.extra_sheets ?? '—' : ''}</td>
+                <td>{c ? totalSheets(c.bundle_count, c.sheets_per_bundle, c.extra_sheets) ?? '—' : ''}</td>
                 <td>{d.remaining_size_cm ?? '—'}</td>
                 <td>{d.remaining_gross_weight ?? '—'}</td>
                 <td>{d.remaining_kanta_weight ?? '—'}</td>
+                <td>{d.remaining_net_weight ?? '—'}</td>
                 <td>{c ? c.sold_to : d.sold_to}</td>
                 <td>{c ? c.weight_kg : d.kanta_weight}</td>
                 <td>{d.cutting_name}</td>
+                <td>{isFirst ? d.reel_dispatch_status?.material_diff ?? '—' : ''}</td>
                 <td>{c ? c.remarks : d.remarks}</td>
                 <td>{d.profiles?.name}</td>
                 <td>{isFirst && <button type="button" onClick={() => startEdit(d)}>Edit</button>}</td>
               </tr>
             ))}
             {recentRows.length === 0 && (
-              <tr><td colSpan={15}>No reel dispatches yet.</td></tr>
+              <tr><td colSpan={22}>No reel dispatches yet.</td></tr>
             )}
           </tbody>
         </table>
