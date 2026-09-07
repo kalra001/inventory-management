@@ -19,6 +19,12 @@ export default function Holds() {
   const [available, setAvailable] = useState(null)
   const [editingHoldId, setEditingHoldId] = useState(null)
   const [editingOriginalPackets, setEditingOriginalPackets] = useState(0)
+  const [heldBySearch, setHeldBySearch] = useState('')
+
+  const filteredHolds = useMemo(() => {
+    const q = heldBySearch.trim().toLowerCase()
+    return q ? holds.filter((h) => h.held_by?.toLowerCase().includes(q)) : holds
+  }, [holds, heldBySearch])
 
   const productOptions = useMemo(
     () => products.map((p) => ({
@@ -195,7 +201,15 @@ export default function Holds() {
 
       {error && <p className="error">{error}</p>}
 
-      <h2>Active holds</h2>
+      <div className="page-header">
+        <h2>Active holds</h2>
+        <input
+          className="search-box"
+          placeholder="Search held by…"
+          value={heldBySearch}
+          onChange={(e) => setHeldBySearch(e.target.value)}
+        />
+      </div>
       <div className="table-scroll">
         <table className="card-table">
           <thead>
@@ -204,7 +218,7 @@ export default function Holds() {
             </tr>
           </thead>
           <tbody>
-            {holds.map((h) => (
+            {filteredHolds.map((h) => (
               <tr key={h.hold_id}>
                 <td data-label="Product">{h.products?.product_id} — {h.products?.variety}</td>
                 <td data-label="Packets">{h.packets}</td>
@@ -217,8 +231,8 @@ export default function Holds() {
                 <td><button type="button" onClick={() => dispatchFromHold(h)}>Dispatch</button></td>
               </tr>
             ))}
-            {holds.length === 0 && (
-              <tr><td colSpan={9}>No active holds.</td></tr>
+            {filteredHolds.length === 0 && (
+              <tr><td colSpan={9}>{heldBySearch ? 'No active holds match that search.' : 'No active holds.'}</td></tr>
             )}
           </tbody>
         </table>
