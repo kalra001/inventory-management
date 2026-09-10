@@ -47,9 +47,12 @@ export default function Receipts() {
   )
 
   const poOptions = useMemo(
-    () => [{ value: '', label: 'No PO' }, ...pos.map((po) => ({ value: po.po_id, label: po.so_number }))],
+    () => [{ value: 'none', label: 'No PO' }, ...pos.map((po) => ({ value: po.po_id, label: po.so_number }))],
     [pos]
   )
+
+  // both '' (nothing picked yet) and 'none' (explicitly "No PO") mean no PO linked
+  const hasPo = form.po_id && form.po_id !== 'none'
 
   const poItemOptions = useMemo(
     () => poItems.map((i) => ({
@@ -66,7 +69,7 @@ export default function Receipts() {
   }, [])
 
   useEffect(() => {
-    if (!form.po_id) {
+    if (!hasPo) {
       setPoItems([])
       return
     }
@@ -99,6 +102,11 @@ export default function Receipts() {
 
   function updateField(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  function selectPo(poId) {
+    // clear any PO-item selection carried over from a previously chosen PO
+    setForm((f) => ({ ...f, po_id: poId, po_item_id: '' }))
   }
 
   function selectPoItem(poItemId) {
@@ -196,12 +204,12 @@ export default function Receipts() {
           <SearchableSelect
             options={poOptions}
             value={form.po_id}
-            onChange={(v) => updateField('po_id', v)}
+            onChange={selectPo}
             placeholder="Type to search…"
             className="narrow"
           />
         </label>
-        {form.po_id && (
+        {hasPo && (
           <label>
             PO Item
             <SearchableSelect

@@ -33,6 +33,7 @@ export default function Dispatches() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [available, setAvailable] = useState(null)
+  const [inStock, setInStock] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editingOriginalPackets, setEditingOriginalPackets] = useState(0)
   const [releaseHoldId, setReleaseHoldId] = useState(null)
@@ -70,14 +71,18 @@ export default function Dispatches() {
   useEffect(() => {
     if (!form.product_id) {
       setAvailable(null)
+      setInStock(null)
       return
     }
     supabase
       .from('stock_summary')
-      .select('packets_available')
+      .select('packets_available, packets_in_stock')
       .eq('product_id', form.product_id)
       .single()
-      .then(({ data }) => setAvailable(data?.packets_available ?? 0))
+      .then(({ data }) => {
+        setAvailable(data?.packets_available ?? 0)
+        setInStock(data?.packets_in_stock ?? 0)
+      })
   }, [form.product_id])
 
   async function loadProducts() {
@@ -122,20 +127,30 @@ export default function Dispatches() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setError(null)
     const packets = Number(form.packets)
-    // when editing, the dispatch being edited is already counted in `available`,
-    // so add its original amount back before comparing
-    const effectiveAvailable = available !== null ? available + (editingId ? editingOriginalPackets : 0) : null
+    // when editing, the dispatch being edited is already counted in the
+    // figures below, so add its original amount back before comparing
+    const editBack = editingId ? editingOriginalPackets : 0
 
-    if (effectiveAvailable !== null && packets > effectiveAvailable) {
+    // hard block: physical stock can never go negative
+    const effectiveInStock = inStock !== null ? inStock + editBack : null
+    if (effectiveInStock !== null && packets > effectiveInStock) {
+      setError(`Cannot dispatch ${packets} packets — only ${effectiveInStock} in stock for this product.`)
+      return
+    }
+
+    // soft warning: dispatching more than is free after holds (unless this
+    // dispatch is itself releasing a hold, in which case that's expected)
+    const effectiveAvailable = available !== null ? available + editBack : null
+    if (!releaseHoldId && effectiveAvailable !== null && packets > effectiveAvailable) {
       const proceed = window.confirm(
-        `Only ${effectiveAvailable} packets available for this product. Dispatch ${packets} anyway?`
+        `Only ${effectiveAvailable} packets available after holds. Dispatch ${packets} anyway?`
       )
       if (!proceed) return
     }
 
     setSubmitting(true)
-    setError(null)
     const payload = {
       product_id: form.product_id,
       date: form.date,
@@ -236,7 +251,12 @@ export default function Dispatches() {
             required
           />
         </label>
-        {available !== null && <p className="hint">Available: {available + (editingId ? editingOriginalPackets : 0)} packets</p>}
+        {inStock !== null && (
+          <p className="hint">
+            In stock: {inStock + (editingId ? editingOriginalPackets : 0)} packets
+            {' · '}Available after holds: {available + (editingId ? editingOriginalPackets : 0)}
+          </p>
+        )}
         <label>
           Date
           <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} required />
