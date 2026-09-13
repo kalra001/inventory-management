@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
 import SearchableSelect from '../components/SearchableSelect'
 
-const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', container_no: '', remarks: '', po_id: '', po_item_id: '' }
+const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', challan_no: '', remarks: '', po_id: '', po_item_id: '' }
 
 const REPORT_COLUMNS = [
   { label: 'SO Number', value: (r) => r.purchase_order_items?.purchase_orders?.so_number },
@@ -18,7 +18,7 @@ const REPORT_COLUMNS = [
   { label: 'Packets', value: (r) => r.packets },
   { label: 'Quantity (kg)', value: (r) => (r.products?.packet_weight != null ? r.packets * r.products.packet_weight : '') },
   { label: 'Vehicle', value: (r) => r.vehicle },
-  { label: 'Container No', value: (r) => r.container_no },
+  { label: 'Challan No', value: (r) => r.challan_no },
   { label: 'Remarks', value: (r) => r.remarks },
   { label: 'Edited By', value: (r) => r.profiles?.name },
 ]
@@ -93,7 +93,7 @@ export default function Receipts() {
   async function loadRecent() {
     const { data, error } = await supabase
       .from('receipts')
-      .select('receipt_id, date, packets, vehicle, container_no, remarks, product_id, po_item_id, products(product_id, variety, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
+      .select('receipt_id, date, packets, vehicle, challan_no, remarks, product_id, po_item_id, products(product_id, variety, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
       .order('receipt_id', { ascending: false })
       .limit(25)
     if (error) setError(error.message)
@@ -121,7 +121,7 @@ export default function Receipts() {
       date: r.date,
       packets: String(r.packets),
       vehicle: r.vehicle || '',
-      container_no: r.container_no || '',
+      challan_no: r.challan_no || '',
       remarks: r.remarks || '',
       po_id: r.purchase_order_items?.po_id ? String(r.purchase_order_items.po_id) : '',
       po_item_id: r.po_item_id ? String(r.po_item_id) : '',
@@ -142,7 +142,7 @@ export default function Receipts() {
       date: form.date,
       packets: Number(form.packets),
       vehicle: form.vehicle || null,
-      container_no: form.container_no || null,
+      challan_no: form.challan_no || null,
       remarks: form.remarks || null,
       po_item_id: form.po_item_id || null,
       edited_by: user.id,
@@ -180,7 +180,7 @@ export default function Receipts() {
     setReportBusy(true)
     const { data, error } = await supabase
       .from('receipts')
-      .select('receipt_id, date, packets, vehicle, container_no, remarks, products(product_id, variety, gsm, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
+      .select('receipt_id, date, packets, vehicle, challan_no, remarks, products(product_id, variety, gsm, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
       .gte('date', reportFrom)
       .lte('date', reportTo)
       .order('date', { ascending: true })
@@ -243,8 +243,8 @@ export default function Receipts() {
           <input value={form.vehicle} onChange={(e) => updateField('vehicle', e.target.value)} />
         </label>
         <label>
-          Container No
-          <input value={form.container_no} onChange={(e) => updateField('container_no', e.target.value)} />
+          Challan No
+          <input value={form.challan_no} onChange={(e) => updateField('challan_no', e.target.value)} />
         </label>
         <label>
           Remarks
@@ -278,7 +278,7 @@ export default function Receipts() {
         <table className="card-table">
           <thead>
             <tr>
-              <th>SO Number</th><th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Container</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>SO Number</th><th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -293,7 +293,7 @@ export default function Receipts() {
                 <td data-label="Packets">{r.packets}</td>
                 <td data-label="Quantity (kg)">{r.products?.packet_weight != null ? r.packets * r.products.packet_weight : ''}</td>
                 <td data-label="Vehicle">{r.vehicle}</td>
-                <td data-label="Container">{r.container_no}</td>
+                <td data-label="Challan No">{r.challan_no}</td>
                 <td data-label="Remarks">{r.remarks}</td>
                 <td data-label="Edited By">{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>

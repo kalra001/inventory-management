@@ -90,7 +90,7 @@ create table public.receipts (
   product_id text not null references public.products (product_id),
   packets numeric not null check (packets > 0),
   vehicle text,
-  container_no text,
+  challan_no text,
   remarks text,
   po_item_id bigint references public.purchase_order_items (po_item_id),
   edited_by uuid references public.profiles (id) default auth.uid(),

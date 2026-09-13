@@ -63,7 +63,7 @@ export default function ProductLedger() {
       supabase.from('stock_summary').select('*').eq('product_id', pid).single(),
       supabase
         .from('receipts')
-        .select('receipt_id, date, packets, vehicle, container_no, remarks, created_at, profiles(name)')
+        .select('receipt_id, date, packets, vehicle, challan_no, remarks, created_at, profiles(name)')
         .eq('product_id', pid)
         .order('date', { ascending: true })
         .order('created_at', { ascending: true }),
@@ -100,7 +100,7 @@ export default function ProductLedger() {
         type: 'Receipt',
         packets: r.packets,
         vehicle: r.vehicle,
-        reference: r.container_no,
+        reference: r.challan_no,
         remarks: r.remarks,
         editedBy: r.profiles?.name,
       })),
