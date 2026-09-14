@@ -16,6 +16,7 @@ export default function NavBar() {
       <NavLink to="/traders">Traders</NavLink>
       <NavLink to="/products">Products</NavLink>
       <NavLink to="/product-ledger">Product Ledger</NavLink>
+      <NavLink to="/so-ledger">SO Ledger</NavLink>
       <NavLink to="/reel-stock">Reel Stock</NavLink>
       <NavLink to="/reel-receipts">Reel Receipts</NavLink>
       <NavLink to="/reel-dispatches">Reel Dispatches</NavLink>
