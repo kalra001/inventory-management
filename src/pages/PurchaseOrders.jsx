@@ -8,6 +8,7 @@ const COMPANIES = ['Kalra Paper Impex', 'Reliable Papers']
 const SOURCES = ['JK Paper CPM', 'JK Paper QSC']
 
 const STATUS_COLUMNS = [
+  { label: 'PO Number', value: (r) => r.po_number },
   { label: 'SO Number', value: (r) => r.so_number },
   { label: 'Company', value: (r) => r.company },
   { label: 'Source', value: (r) => r.source },
@@ -68,12 +69,16 @@ export default function PurchaseOrders() {
   const [pos, setPos] = useState([])
   const [statusRows, setStatusRows] = useState([])
   const [showClosed, setShowClosed] = useState(false)
+  const [poListSearch, setPoListSearch] = useState('')
+  const [statusSearch, setStatusSearch] = useState('')
   const [poForm, setPoForm] = useState(emptyPoForm)
   const [itemRows, setItemRows] = useState([{ ...emptyItemRow }])
   const [addItemPoId, setAddItemPoId] = useState('')
   const [newItem, setNewItem] = useState({ ...emptyItemRow })
   const [addItemBusy, setAddItemBusy] = useState(false)
   const [editingPoItemId, setEditingPoItemId] = useState(null)
+  const [editingPoId, setEditingPoId] = useState(null)
+  const [poNumberPreview, setPoNumberPreview] = useState(null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -86,7 +91,7 @@ export default function PurchaseOrders() {
   )
 
   const poOptions = useMemo(
-    () => pos.map((po) => ({ value: po.po_id, label: po.so_number })),
+    () => pos.map((po) => ({ value: po.po_id, label: `${po.po_number} — ${po.so_number || 'no SO yet'}` })),
     [pos]
   )
 
@@ -96,13 +101,27 @@ export default function PurchaseOrders() {
     loadStatus()
   }, [])
 
+  // preview-only — the real number is assigned atomically when the PO is
+  // actually saved, so this can in rare cases be off by one if someone
+  // else creates a PO in the same financial year at the same moment
+  useEffect(() => {
+    if (editingPoId || !poForm.order_placed_date) return
+    supabase.rpc('peek_next_po_number', { order_date: poForm.order_placed_date })
+      .then(({ data, error }) => {
+        if (!error) setPoNumberPreview(data)
+      })
+  }, [poForm.order_placed_date, editingPoId])
+
   async function loadProducts() {
     const { data } = await supabase.from('products').select('product_id, variety, active').order('variety')
     setProducts(data ?? [])
   }
 
   async function loadPos() {
-    const { data } = await supabase.from('purchase_orders').select('po_id, so_number, source').order('so_number')
+    const { data } = await supabase
+      .from('purchase_orders')
+      .select('po_id, po_number, so_number, order_placed_date, so_date, company, source, ship_to, remarks')
+      .order('po_id', { ascending: false })
     setPos(data ?? [])
   }
 
@@ -132,29 +151,64 @@ export default function PurchaseOrders() {
     setItemRows((rows) => rows.filter((_, i) => i !== index))
   }
 
-  async function handleCreatePO(e) {
+  function startEditPo(po) {
+    setEditingPoId(po.po_id)
+    setPoForm({
+      so_number: po.so_number || '',
+      order_placed_date: po.order_placed_date,
+      so_date: po.so_date || '',
+      company: po.company || '',
+      source: po.source || '',
+      ship_to: po.ship_to || '',
+      remarks: po.remarks || '',
+    })
+  }
+
+  function cancelEditPo() {
+    setEditingPoId(null)
+    setPoForm(emptyPoForm)
+  }
+
+  async function handleSavePO(e) {
     e.preventDefault()
     setError(null)
 
+    const poPayload = {
+      so_number: poForm.so_number.trim() || null,
+      order_placed_date: poForm.order_placed_date,
+      so_date: poForm.so_date || null,
+      company: poForm.company || null,
+      source: poForm.source || null,
+      ship_to: poForm.ship_to || null,
+      remarks: poForm.remarks || null,
+      edited_by: user.id,
+    }
+
+    if (editingPoId) {
+      setSubmitting(true)
+      const { error } = await supabase.from('purchase_orders').update(poPayload).eq('po_id', editingPoId)
+      setSubmitting(false)
+      if (error) {
+        setError(error.message)
+        return
+      }
+      setEditingPoId(null)
+      setPoForm(emptyPoForm)
+      loadPos()
+      loadStatus()
+      return
+    }
+
     const validItems = itemRows.filter((r) => r.product_id && r.ordered_qty_kg)
-    if (!poForm.so_number.trim() || validItems.length === 0) {
-      setError('Enter an SO number and at least one item with a product and ordered quantity.')
+    if (validItems.length === 0) {
+      setError('Enter at least one item with a product and ordered quantity.')
       return
     }
 
     setSubmitting(true)
     const { data: po, error: poError } = await supabase
       .from('purchase_orders')
-      .insert({
-        so_number: poForm.so_number.trim(),
-        order_placed_date: poForm.order_placed_date,
-        so_date: poForm.so_date || null,
-        company: poForm.company || null,
-        source: poForm.source || null,
-        ship_to: poForm.ship_to || null,
-        remarks: poForm.remarks || null,
-        edited_by: user.id,
-      })
+      .insert(poPayload)
       .select()
       .single()
 
@@ -250,7 +304,14 @@ export default function PurchaseOrders() {
     else loadStatus()
   }
 
-  const visibleRows = statusRows.filter((r) => showClosed || !r.closed)
+  function matchesPoSearch(poNumber, soNumber, query) {
+    if (!query) return true
+    const q = query.trim().toLowerCase()
+    return (poNumber || '').toLowerCase().includes(q) || (soNumber || '').toLowerCase().includes(q)
+  }
+
+  const filteredPos = pos.filter((po) => matchesPoSearch(po.po_number, po.so_number, poListSearch))
+  const visibleRows = statusRows.filter((r) => (showClosed || !r.closed) && matchesPoSearch(r.po_number, r.so_number, statusSearch))
   const addItemSource = pos.find((p) => String(p.po_id) === String(addItemPoId))?.source
   const isQscCreate = poForm.source === 'JK Paper QSC'
   const isQscAddItem = addItemSource === 'JK Paper QSC'
@@ -264,10 +325,19 @@ export default function PurchaseOrders() {
     <div className="page">
       <h1>Purchase Orders</h1>
 
-      <form className="stack-form" onSubmit={handleCreatePO}>
+      <h2>{editingPoId ? 'Edit Purchase Order' : 'Create Purchase Order'}</h2>
+      <form className="stack-form" onSubmit={handleSavePO}>
+        <label>
+          PO Number
+          <input
+            value={editingPoId ? (pos.find((p) => p.po_id === editingPoId)?.po_number ?? '') : (poNumberPreview ?? 'Calculating…')}
+            disabled
+          />
+          {!editingPoId && <span className="hint">Preview only — the final number is assigned when you save.</span>}
+        </label>
         <label>
           SO Number
-          <input value={poForm.so_number} onChange={(e) => updatePoField('so_number', e.target.value)} required />
+          <input value={poForm.so_number} onChange={(e) => updatePoField('so_number', e.target.value)} placeholder="Leave blank until received" />
         </label>
         <label>
           Order Placed Date
@@ -305,6 +375,8 @@ export default function PurchaseOrders() {
         </label>
       </form>
 
+      {!editingPoId && (
+      <>
       <h2>Items on this SO</h2>
       {itemRows.map((row, i) => (
         <div className="item-card" key={i}>
@@ -371,14 +443,19 @@ export default function PurchaseOrders() {
         </div>
       ))}
       <button type="button" onClick={addItemRow}>Add item</button>{' '}
-      <button type="button" onClick={handleCreatePO} disabled={submitting}>{submitting ? 'Saving…' : 'Create Purchase Order'}</button>
+      </>
+      )}
+      <button type="button" onClick={handleSavePO} disabled={submitting}>
+        {submitting ? 'Saving…' : editingPoId ? 'Save changes' : 'Create Purchase Order'}
+      </button>
+      {editingPoId && <button type="button" onClick={cancelEditPo}>Cancel</button>}
 
       {error && <p className="error">{error}</p>}
 
-      <h2>{editingPoItemId ? 'Edit item' : 'Add item to an existing SO'}</h2>
+      <h2>{editingPoItemId ? 'Edit item' : 'Add item to an existing PO'}</h2>
       <form className="stack-form compact-form" onSubmit={handleAddItem}>
         <label>
-          SO Number
+          PO / SO Number
           <SearchableSelect
             options={poOptions}
             value={addItemPoId}
@@ -455,7 +532,50 @@ export default function PurchaseOrders() {
       </form>
 
       <div className="page-header">
+        <h2>Purchase Orders</h2>
+        <input
+          className="search-box"
+          placeholder="Search PO or SO number…"
+          value={poListSearch}
+          onChange={(e) => setPoListSearch(e.target.value)}
+        />
+      </div>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>PO Number</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th><th>Order Placed</th><th>SO Date</th><th>Remarks</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPos.map((po) => (
+              <tr key={po.po_id}>
+                <td>{po.po_number}</td>
+                <td>{po.so_number || <span className="hint">not received yet</span>}</td>
+                <td>{po.company}</td>
+                <td>{po.source}</td>
+                <td>{po.ship_to}</td>
+                <td>{po.order_placed_date}</td>
+                <td>{po.so_date}</td>
+                <td>{po.remarks}</td>
+                <td><button type="button" onClick={() => startEditPo(po)}>Edit</button></td>
+              </tr>
+            ))}
+            {filteredPos.length === 0 && (
+              <tr><td colSpan={9}>{poListSearch ? 'No purchase orders match that search.' : 'No purchase orders yet.'}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="page-header">
         <h2>Purchase order status</h2>
+        <input
+          className="search-box"
+          placeholder="Search PO or SO number…"
+          value={statusSearch}
+          onChange={(e) => setStatusSearch(e.target.value)}
+        />
         <button type="button" onClick={handleDownloadStatus} disabled={visibleRows.length === 0}>Download CSV</button>
       </div>
       <label className="hint">
@@ -465,7 +585,7 @@ export default function PurchaseOrders() {
         <table>
           <thead>
             <tr>
-              <th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th><th>Order Placed</th><th>SO Date</th>
+              <th>PO Number</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th><th>Order Placed</th><th>SO Date</th>
               <th>Product</th><th>GSM</th><th>Size (cm)</th>
               <th>NSR Rate</th><th>Actual Price/kg</th><th>Ordered (kg)</th><th>Received (kg)</th><th>Balance (kg)</th>
               <th>Addl Disc Ack No.</th><th>Addl Disc Ack Date</th>
@@ -475,6 +595,7 @@ export default function PurchaseOrders() {
           <tbody>
             {visibleRows.map((r) => (
               <tr key={r.po_item_id} className={r.closed ? 'archived-row' : ''}>
+                <td>{r.po_number}</td>
                 <td>{r.so_number}</td>
                 <td>{r.company}</td>
                 <td>{r.source}</td>
@@ -497,7 +618,7 @@ export default function PurchaseOrders() {
               </tr>
             ))}
             {visibleRows.length === 0 && (
-              <tr><td colSpan={19}>No purchase order items to show.</td></tr>
+              <tr><td colSpan={20}>{statusSearch ? 'No items match that search.' : 'No purchase order items to show.'}</td></tr>
             )}
           </tbody>
         </table>

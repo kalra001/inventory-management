@@ -47,7 +47,7 @@ export default function Receipts() {
   )
 
   const poOptions = useMemo(
-    () => [{ value: 'none', label: 'No PO' }, ...pos.map((po) => ({ value: po.po_id, label: po.so_number }))],
+    () => [{ value: 'none', label: 'No PO' }, ...pos.map((po) => ({ value: po.po_id, label: `${po.so_number} (${po.po_number})` }))],
     [pos]
   )
 
@@ -86,7 +86,12 @@ export default function Receipts() {
   }
 
   async function loadPos() {
-    const { data } = await supabase.from('purchase_orders').select('po_id, so_number').order('so_number')
+    // only POs whose SO number has arrived — this page works by SO number only
+    const { data } = await supabase
+      .from('purchase_orders')
+      .select('po_id, po_number, so_number')
+      .not('so_number', 'is', null)
+      .order('so_number')
     setPos(data ?? [])
   }
 

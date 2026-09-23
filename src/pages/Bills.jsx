@@ -10,6 +10,7 @@ const emptyBillItemForm = { bill_id: '', po_item_id: '', qty_kg: '', mill_billed
 const ITEM_REPORT_COLUMNS = [
   { label: 'Bill Number', value: (r) => r.bill_number },
   { label: 'Bill Date', value: (r) => r.bill_date },
+  { label: 'PO Number', value: (r) => r.po_number },
   { label: 'SO Number', value: (r) => r.so_number },
   { label: 'Company', value: (r) => r.company },
   { label: 'Source', value: (r) => r.source },
@@ -63,7 +64,7 @@ export default function Bills() {
   const poItemOptions = useMemo(
     () => poItems.map((i) => ({
       value: i.po_item_id,
-      label: `${i.so_number} — ${i.product_id} — ${i.variety} (received ${i.received_kg} kg, actual price ${i.actual_price_per_kg}/kg)${i.closed ? ' (closed)' : ''}`,
+      label: `${i.so_number} (${i.po_number}) — ${i.product_id} — ${i.variety} (received ${i.received_kg} kg, actual price ${i.actual_price_per_kg}/kg)${i.closed ? ' (closed)' : ''}`,
     })),
     [poItems]
   )
@@ -81,9 +82,11 @@ export default function Bills() {
   }
 
   async function loadPoItems() {
+    // only items on POs whose SO number has arrived — this page works by SO number only
     const { data } = await supabase
       .from('po_item_status')
-      .select('po_item_id, so_number, product_id, variety, nsr_rate, actual_price_per_kg, received_kg, closed')
+      .select('po_item_id, po_number, so_number, product_id, variety, nsr_rate, actual_price_per_kg, received_kg, closed')
+      .not('so_number', 'is', null)
       .order('so_number')
     setPoItems(data ?? [])
   }
@@ -371,7 +374,7 @@ export default function Bills() {
         <table>
           <thead>
             <tr>
-              <th>Bill Number</th><th>Bill Date</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th>
+              <th>Bill Number</th><th>Bill Date</th><th>PO Number</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th>
               <th>Product</th><th>NSR Rate</th><th>Actual Price/kg</th><th>Qty (kg)</th>
               <th>Mill Billed</th><th>Expected</th><th>Variance</th><th>GST Rate</th><th>GST Amount</th><th>Variance incl. GST</th><th></th>
             </tr>
@@ -381,6 +384,7 @@ export default function Bills() {
               <tr key={r.bill_item_id}>
                 <td>{r.bill_number}</td>
                 <td>{r.bill_date}</td>
+                <td>{r.po_number}</td>
                 <td>{r.so_number}</td>
                 <td>{r.company}</td>
                 <td>{r.source}</td>
@@ -399,7 +403,7 @@ export default function Bills() {
               </tr>
             ))}
             {itemStatusRows.length === 0 && (
-              <tr><td colSpan={17}>No bill items yet.</td></tr>
+              <tr><td colSpan={18}>No bill items yet.</td></tr>
             )}
           </tbody>
         </table>

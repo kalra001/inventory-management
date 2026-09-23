@@ -28,7 +28,7 @@ const RECEIPT_COLUMNS = [
 ]
 
 function buildCsv(po, items, receipts) {
-  const header = `SO Number: ${po.so_number} | Order Placed: ${po.order_placed_date}${po.so_date ? ' | SO Date: ' + po.so_date : ''}${po.company ? ' | Company: ' + po.company : ''}${po.source ? ' | Source: ' + po.source : ''}${po.ship_to ? ' | Ship To: ' + po.ship_to : ''}`
+  const header = `SO Number: ${po.so_number} | PO Number: ${po.po_number} | Order Placed: ${po.order_placed_date}${po.so_date ? ' | SO Date: ' + po.so_date : ''}${po.company ? ' | Company: ' + po.company : ''}${po.source ? ' | Source: ' + po.source : ''}${po.ship_to ? ' | Ship To: ' + po.ship_to : ''}`
   const itemsBlock = 'Items on this SO\r\n' + rowsToCsv(items, ITEM_COLUMNS)
   const receiptsBlock = 'Receipts against this SO\r\n' + rowsToCsv(receipts, RECEIPT_COLUMNS)
   return [header, itemsBlock, receiptsBlock].join('\r\n\r\n')
@@ -44,7 +44,7 @@ export default function SoLedger() {
   const [error, setError] = useState(null)
 
   const poOptions = useMemo(
-    () => pos.map((p) => ({ value: p.po_id, label: p.so_number })),
+    () => pos.map((p) => ({ value: p.po_id, label: `${p.so_number} (${p.po_number})` })),
     [pos]
   )
 
@@ -63,7 +63,12 @@ export default function SoLedger() {
   }, [poId])
 
   async function loadPos() {
-    const { data } = await supabase.from('purchase_orders').select('po_id, so_number').order('so_number')
+    // only POs whose SO number has arrived — this page works by SO number only
+    const { data } = await supabase
+      .from('purchase_orders')
+      .select('po_id, po_number, so_number')
+      .not('so_number', 'is', null)
+      .order('so_number')
     setPos(data ?? [])
   }
 
@@ -138,6 +143,7 @@ export default function SoLedger() {
       {po && (
         <div className="ledger-summary">
           <strong>{po.so_number}</strong>
+          <span className="hint">PO Number: {po.po_number}</span>
           <span className="hint">Order Placed: {po.order_placed_date}</span>
           {po.so_date && <span className="hint">SO Date: {po.so_date}</span>}
           {po.company && <span className="hint">Company: {po.company}</span>}

@@ -41,11 +41,81 @@ create table public.products (
 );
 
 -- ============================================================
--- Purchase Orders (placed with the mill, identified by their SO number)
+-- PO Number auto-generation — financial-year based (Apr–Mar), e.g.
+-- PO-2026-27-0001, resetting to 0001 at the start of each financial
+-- year. Assigned automatically on insert; never changes afterward.
+-- ============================================================
+create table public.po_number_counters (
+  fy_label text primary key,
+  last_seq integer not null default 0
+);
+alter table public.po_number_counters enable row level security;
+
+create function public.fy_label(d date)
+returns text
+language sql
+immutable
+as $$
+  select (case when extract(month from d) >= 4
+            then extract(year from d)::int
+            else extract(year from d)::int - 1
+          end)::text
+    || '-' ||
+    lpad((((case when extract(month from d) >= 4
+            then extract(year from d)::int
+            else extract(year from d)::int - 1
+          end) + 1) % 100)::text, 2, '0')
+$$;
+
+create function public.next_po_number(order_date date)
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  v_fy text := public.fy_label(order_date);
+  v_seq int;
+begin
+  insert into public.po_number_counters (fy_label, last_seq)
+  values (v_fy, 1)
+  on conflict (fy_label) do update set last_seq = public.po_number_counters.last_seq + 1
+  returning last_seq into v_seq;
+
+  return 'PO-' || v_fy || '-' || lpad(v_seq::text, 4, '0');
+end;
+$$;
+
+-- read-only preview of what the next po_number would be — does NOT
+-- reserve/consume it, so it's safe to call just for display while
+-- someone is filling in the Create PO form
+create function public.peek_next_po_number(order_date date)
+returns text
+language sql
+security definer
+as $$
+  select 'PO-' || public.fy_label(order_date) || '-' ||
+    lpad((coalesce((select last_seq from public.po_number_counters where fy_label = public.fy_label(order_date)), 0) + 1)::text, 4, '0')
+$$;
+
+create function public.set_po_number()
+returns trigger as $$
+begin
+  if new.po_number is null then
+    new.po_number := public.next_po_number(coalesce(new.order_placed_date, current_date));
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+-- ============================================================
+-- Purchase Orders (our own reference is po_number, auto-generated;
+-- so_number is the mill's SO number, filled in once they confirm it —
+-- optional until then)
 -- ============================================================
 create table public.purchase_orders (
   po_id bigint generated always as identity primary key,
-  so_number text not null unique,
+  po_number text not null unique,
+  so_number text unique,
   order_placed_date date not null default current_date,
   so_date date,
   company text,                    -- Bill To: which of our own companies placed this PO ('Kalra Paper Impex' / 'Reliable Papers')
@@ -55,6 +125,10 @@ create table public.purchase_orders (
   edited_by uuid references public.profiles (id) default auth.uid(),
   created_at timestamptz not null default now()
 );
+
+create trigger trg_set_po_number
+  before insert on public.purchase_orders
+  for each row execute procedure public.set_po_number();
 
 -- one row per product on a PO — an SO number can cover many items.
 -- these columns build up the agreed "actual price per kg" that a bill is reconciled against.
@@ -218,7 +292,8 @@ select
   coalesce(r.received_kg, 0) as received_kg,
   poi.ordered_qty_kg - coalesce(r.received_kg, 0) as balance_kg,
   poi.additional_discount_ack_number,
-  poi.additional_discount_ack_date
+  poi.additional_discount_ack_date,
+  po.po_number
 from public.purchase_order_items poi
 join public.purchase_orders po on po.po_id = poi.po_id
 join public.products p on p.product_id = poi.product_id
@@ -287,7 +362,8 @@ select
   bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg) as variance,
   b.gst_rate,
   (bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg)) * (b.gst_rate / 100) as item_gst_amount,
-  (bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg)) * (1 + b.gst_rate / 100) as variance_including_gst
+  (bi.mill_billed_amount - (bi.qty_kg * pis.actual_price_per_kg)) * (1 + b.gst_rate / 100) as variance_including_gst,
+  pis.po_number
 from public.bill_items bi
 join public.bills b on b.bill_id = bi.bill_id
 join public.po_item_status pis on pis.po_item_id = bi.po_item_id;
@@ -668,6 +744,7 @@ grant select, insert, update, delete on public.reel_dispatches to authenticated;
 grant select, insert, update, delete on public.reel_dispatch_cuts to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select on public.stock_summary to authenticated;
+grant execute on function public.peek_next_po_number(date) to authenticated;
 grant select on public.po_item_status to authenticated;
 grant select on public.bill_item_status to authenticated;
 grant select on public.bill_summary to authenticated;
