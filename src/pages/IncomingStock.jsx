@@ -1,42 +1,38 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
+import { rowsToCsv, downloadCsv, addMonths, todayStr, daysAgoStr } from '../lib/csv'
 import SearchableSelect from '../components/SearchableSelect'
 
-const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', challan_no: '', remarks: '', po_id: '', po_item_id: '' }
+const emptyForm = { product_id: '', po_id: '', po_item_id: '', expected_date: '', packets: '', vehicle: '', remarks: '' }
 
 const REPORT_COLUMNS = [
-  { label: 'SO Number', value: (r) => r.purchase_order_items?.purchase_orders?.so_number },
-  { label: 'Date', value: (r) => r.date },
   { label: 'Product ID', value: (r) => r.products?.product_id },
   { label: 'Variety', value: (r) => r.products?.variety },
-  { label: 'GSM', value: (r) => r.products?.gsm },
-  { label: 'Size (cm)', value: (r) => r.products?.size_cm },
-  { label: 'Size (in)', value: (r) => r.products?.size_in },
-  { label: 'Packet Weight', value: (r) => r.products?.packet_weight },
   { label: 'Packets', value: (r) => r.packets },
-  { label: 'Quantity (kg)', value: (r) => (r.products?.packet_weight != null ? r.packets * r.products.packet_weight : '') },
+  { label: 'Expected Date', value: (r) => r.expected_date },
   { label: 'Vehicle', value: (r) => r.vehicle },
-  { label: 'Challan No', value: (r) => r.challan_no },
+  { label: 'SO Number', value: (r) => r.purchase_order_items?.purchase_orders?.so_number },
   { label: 'Remarks', value: (r) => r.remarks },
+  { label: 'Status', value: (r) => (r.received ? 'Received' : 'Pending') },
+  { label: 'Received Date', value: (r) => r.received_date },
   { label: 'Edited By', value: (r) => r.profiles?.name },
 ]
 
-export default function Receipts() {
+export default function IncomingStock() {
   const { user } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
   const [pos, setPos] = useState([])
   const [poItems, setPoItems] = useState([])
-  const [recent, setRecent] = useState([])
+  const [pending, setPending] = useState([])
+  const [receivedRecent, setReceivedRecent] = useState([])
+  const [pendingSearch, setPendingSearch] = useState('')
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [fromIncomingId, setFromIncomingId] = useState(null)
   const [reportFrom, setReportFrom] = useState(todayStr())
   const [reportTo, setReportTo] = useState(todayStr())
   const [reportError, setReportError] = useState(null)
@@ -66,27 +62,21 @@ export default function Receipts() {
     [poItems]
   )
 
+  const filteredPending = useMemo(() => {
+    const q = pendingSearch.trim().toLowerCase()
+    if (!q) return pending
+    return pending.filter((r) => {
+      const haystacks = [r.products?.product_id, r.products?.variety].map((v) => v?.toLowerCase() ?? '')
+      return haystacks.some((h) => h.includes(q))
+    })
+  }, [pending, pendingSearch])
+
   useEffect(() => {
     loadProducts()
     loadPos()
-    loadRecent()
+    loadPending()
+    loadReceivedRecent()
   }, [])
-
-  useEffect(() => {
-    if (location.state?.fromIncomingId) {
-      setForm((f) => ({
-        ...f,
-        product_id: location.state.product_id,
-        packets: String(location.state.packets),
-        vehicle: location.state.vehicle || '',
-        po_id: location.state.po_id || '',
-        po_item_id: location.state.po_item_id || '',
-      }))
-      setFromIncomingId(location.state.fromIncomingId)
-      navigate(location.pathname, { replace: true, state: null })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state])
 
   useEffect(() => {
     if (!hasPo) {
@@ -106,7 +96,7 @@ export default function Receipts() {
   }
 
   async function loadPos() {
-    // only POs whose SO number has arrived — this page works by SO number only
+    // only POs whose SO number has arrived — consistent with Receipts
     const { data } = await supabase
       .from('purchase_orders')
       .select('po_id, po_number, so_number')
@@ -115,14 +105,28 @@ export default function Receipts() {
     setPos(data ?? [])
   }
 
-  async function loadRecent() {
+  async function loadPending() {
     const { data, error } = await supabase
-      .from('receipts')
-      .select('receipt_id, date, packets, vehicle, challan_no, remarks, product_id, po_item_id, products(product_id, variety, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
-      .order('receipt_id', { ascending: false })
-      .limit(25)
+      .from('incoming_stock')
+      .select('incoming_id, product_id, packets, expected_date, vehicle, remarks, po_item_id, products(product_id, variety, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
+      .eq('received', false)
+      .order('expected_date', { ascending: true })
+      .order('incoming_id', { ascending: true })
     if (error) setError(error.message)
-    else setRecent(data)
+    else setPending(data)
+  }
+
+  async function loadReceivedRecent() {
+    const cutoffStr = daysAgoStr(1)
+    const { data, error } = await supabase
+      .from('incoming_stock')
+      .select('incoming_id, product_id, packets, expected_date, received_date, products(product_id, variety), profiles(name)')
+      .eq('received', true)
+      .gte('received_date', cutoffStr)
+      .order('received_date', { ascending: false })
+      .order('incoming_id', { ascending: false })
+    if (error) setError(error.message)
+    else setReceivedRecent(data)
   }
 
   function updateField(field, value) {
@@ -130,7 +134,6 @@ export default function Receipts() {
   }
 
   function selectPo(poId) {
-    // clear any PO-item selection carried over from a previously chosen PO
     setForm((f) => ({ ...f, po_id: poId, po_item_id: '' }))
   }
 
@@ -140,22 +143,20 @@ export default function Receipts() {
   }
 
   function startEdit(r) {
-    setEditingId(r.receipt_id)
+    setEditingId(r.incoming_id)
     setForm({
       product_id: r.product_id,
-      date: r.date,
-      packets: String(r.packets),
-      vehicle: r.vehicle || '',
-      challan_no: r.challan_no || '',
-      remarks: r.remarks || '',
       po_id: r.purchase_order_items?.po_id ? String(r.purchase_order_items.po_id) : '',
       po_item_id: r.po_item_id ? String(r.po_item_id) : '',
+      expected_date: r.expected_date || '',
+      packets: String(r.packets),
+      vehicle: r.vehicle || '',
+      remarks: r.remarks || '',
     })
   }
 
   function cancelEdit() {
     setEditingId(null)
-    setFromIncomingId(null)
     setForm(emptyForm)
   }
 
@@ -165,46 +166,44 @@ export default function Receipts() {
     setError(null)
     const payload = {
       product_id: form.product_id,
-      date: form.date,
       packets: Number(form.packets),
-      vehicle: form.vehicle || null,
-      challan_no: form.challan_no || null,
-      remarks: form.remarks || null,
       po_item_id: form.po_item_id || null,
+      expected_date: form.expected_date || null,
+      vehicle: form.vehicle || null,
+      remarks: form.remarks || null,
       edited_by: user.id,
     }
-    const { data: savedReceipt, error } = editingId
-      ? await supabase.from('receipts').update(payload).eq('receipt_id', editingId).select().single()
-      : await supabase.from('receipts').insert(payload).select().single()
-
+    const { error } = editingId
+      ? await supabase.from('incoming_stock').update(payload).eq('incoming_id', editingId)
+      : await supabase.from('incoming_stock').insert(payload)
+    setSubmitting(false)
     if (error) {
-      setSubmitting(false)
       setError(error.message)
       return
     }
-
-    if (!editingId && fromIncomingId) {
-      const { error: incomingError } = await supabase
-        .from('incoming_stock')
-        .update({
-          received: true,
-          received_date: todayStr(),
-          linked_receipt_id: savedReceipt.receipt_id,
-          edited_by: user.id,
-        })
-        .eq('incoming_id', fromIncomingId)
-      if (incomingError) {
-        setSubmitting(false)
-        setError(`Receipt recorded, but failed to mark the incoming stock as received: ${incomingError.message}`)
-        return
-      }
-    }
-
-    setSubmitting(false)
     setEditingId(null)
-    setFromIncomingId(null)
-    setForm({ ...emptyForm, date: form.date })
-    loadRecent()
+    setForm(emptyForm)
+    loadPending()
+  }
+
+  async function deleteIncoming(incomingId) {
+    if (!window.confirm('Delete this incoming stock entry?')) return
+    const { error } = await supabase.from('incoming_stock').delete().eq('incoming_id', incomingId)
+    if (error) setError(error.message)
+    else loadPending()
+  }
+
+  function handleReceive(r) {
+    navigate('/receipts', {
+      state: {
+        fromIncomingId: r.incoming_id,
+        product_id: r.product_id,
+        packets: r.packets,
+        vehicle: r.vehicle || '',
+        po_id: r.purchase_order_items?.po_id ? String(r.purchase_order_items.po_id) : '',
+        po_item_id: r.po_item_id ? String(r.po_item_id) : '',
+      },
+    })
   }
 
   async function handleDownloadReport(e) {
@@ -226,31 +225,24 @@ export default function Receipts() {
 
     setReportBusy(true)
     const { data, error } = await supabase
-      .from('receipts')
-      .select('receipt_id, date, packets, vehicle, challan_no, remarks, products(product_id, variety, gsm, size_cm, size_in, packet_weight), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
-      .gte('date', reportFrom)
-      .lte('date', reportTo)
-      .order('date', { ascending: true })
-      .order('receipt_id', { ascending: true })
+      .from('incoming_stock')
+      .select('incoming_id, packets, expected_date, vehicle, remarks, received, received_date, products(product_id, variety), profiles(name), purchase_order_items(po_id, purchase_orders(so_number))')
+      .gte('expected_date', reportFrom)
+      .lte('expected_date', reportTo)
+      .order('expected_date', { ascending: true })
+      .order('incoming_id', { ascending: true })
     setReportBusy(false)
 
     if (error) {
       setReportError(error.message)
       return
     }
-    downloadCsv(`receipts-${reportFrom}-to-${reportTo}.csv`, rowsToCsv(data, REPORT_COLUMNS))
+    downloadCsv(`incoming-stock-${reportFrom}-to-${reportTo}.csv`, rowsToCsv(data, REPORT_COLUMNS))
   }
 
   return (
     <div className="page">
-      <h1>Receipts (incoming stock)</h1>
-
-      {fromIncomingId && (
-        <p className="hint">
-          Receiving incoming stock — submitting this will mark it as received.{' '}
-          <button type="button" onClick={() => { setFromIncomingId(null); setForm(emptyForm) }}>Cancel</button>
-        </p>
-      )}
+      <h1>Incoming Stock (dispatched by mill, not yet received)</h1>
 
       <form className="stack-form" onSubmit={handleSubmit}>
         <label>
@@ -285,27 +277,23 @@ export default function Receipts() {
           />
         </label>
         <label>
-          Date
-          <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} required />
+          Packets (expected)
+          <input type="number" min="0.01" step="any" value={form.packets} onChange={(e) => updateField('packets', e.target.value)} required />
         </label>
         <label>
-          Packets
-          <input type="number" min="0.01" step="any" value={form.packets} onChange={(e) => updateField('packets', e.target.value)} required />
+          Expected Date
+          <input type="date" value={form.expected_date} onChange={(e) => updateField('expected_date', e.target.value)} />
         </label>
         <label>
           Vehicle
           <input value={form.vehicle} onChange={(e) => updateField('vehicle', e.target.value)} />
         </label>
         <label>
-          Challan No
-          <input value={form.challan_no} onChange={(e) => updateField('challan_no', e.target.value)} />
-        </label>
-        <label>
           Remarks
           <input value={form.remarks} onChange={(e) => updateField('remarks', e.target.value)} />
         </label>
         <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : editingId ? 'Update receipt' : 'Record receipt'}
+          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Add incoming stock'}
         </button>
         {editingId && <button type="button" onClick={cancelEdit}>Cancel</button>}
       </form>
@@ -325,34 +313,67 @@ export default function Receipts() {
         <button type="submit" disabled={reportBusy}>{reportBusy ? 'Preparing…' : 'Download CSV'}</button>
       </form>
       {reportError && <p className="error">{reportError}</p>}
-      <p className="hint">Date range is limited to 2 months.</p>
+      <p className="hint">Date range is limited to 2 months. Filters by expected date.</p>
 
-      <h2>Recent receipts</h2>
+      <div className="page-header">
+        <h2>Pending incoming stock</h2>
+        <input
+          className="search-box"
+          placeholder="Search product…"
+          value={pendingSearch}
+          onChange={(e) => setPendingSearch(e.target.value)}
+        />
+      </div>
       <div className="table-scroll">
-        <table className="card-table">
+        <table>
           <thead>
             <tr>
-              <th>SO Number</th><th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>Product</th><th>Packets</th><th>Expected Date</th><th>Vehicle</th><th>SO Number</th><th>Remarks</th><th>Edited By</th><th></th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
-            {recent.map((r) => (
-              <tr key={r.receipt_id}>
-                <td data-label="SO Number">{r.purchase_order_items?.purchase_orders?.so_number}</td>
-                <td data-label="Date">{r.date}</td>
-                <td data-label="Product">{r.products?.product_id} — {r.products?.variety}</td>
-                <td data-label="Size (cm)">{r.products?.size_cm}</td>
-                <td data-label="Size (in)">{r.products?.size_in}</td>
-                <td data-label="Packet Wt">{r.products?.packet_weight}</td>
-                <td data-label="Packets">{r.packets}</td>
-                <td data-label="Quantity (kg)">{r.products?.packet_weight != null ? r.packets * r.products.packet_weight : ''}</td>
-                <td data-label="Vehicle">{r.vehicle}</td>
-                <td data-label="Challan No">{r.challan_no}</td>
-                <td data-label="Remarks">{r.remarks}</td>
-                <td data-label="Edited By">{r.profiles?.name}</td>
+            {filteredPending.map((r) => (
+              <tr key={r.incoming_id}>
+                <td>{r.products?.product_id} — {r.products?.variety}</td>
+                <td>{r.packets}</td>
+                <td>{r.expected_date}</td>
+                <td>{r.vehicle}</td>
+                <td>{r.purchase_order_items?.purchase_orders?.so_number}</td>
+                <td>{r.remarks}</td>
+                <td>{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>
+                <td><button type="button" onClick={() => handleReceive(r)}>Receive</button></td>
+                <td><button type="button" onClick={() => deleteIncoming(r.incoming_id)}>Delete</button></td>
               </tr>
             ))}
+            {filteredPending.length === 0 && (
+              <tr><td colSpan={10}>{pendingSearch ? 'No pending incoming stock matches that search.' : 'No incoming stock pending.'}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Recently received (last 24 hours)</h2>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th><th>Packets</th><th>Expected Date</th><th>Received Date</th><th>Edited By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {receivedRecent.map((r) => (
+              <tr key={r.incoming_id}>
+                <td>{r.products?.product_id} — {r.products?.variety}</td>
+                <td>{r.packets}</td>
+                <td>{r.expected_date}</td>
+                <td>{r.received_date}</td>
+                <td>{r.profiles?.name}</td>
+              </tr>
+            ))}
+            {receivedRecent.length === 0 && (
+              <tr><td colSpan={5}>No incoming stock received in the last 24 hours.</td></tr>
+            )}
           </tbody>
         </table>
       </div>

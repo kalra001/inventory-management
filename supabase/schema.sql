@@ -204,6 +204,28 @@ create table public.holds (
 );
 
 -- ============================================================
+-- Incoming stock — material the mill has dispatched but that hasn't
+-- physically arrived yet. Purely informational until "received":
+-- never counted in packets_in_stock/available. Converted into a real
+-- receipt via the app's "Receive" flow, which also marks this row
+-- received and links it to the resulting receipt.
+-- ============================================================
+create table public.incoming_stock (
+  incoming_id bigint generated always as identity primary key,
+  product_id text not null references public.products (product_id),
+  packets numeric not null check (packets > 0),
+  po_item_id bigint references public.purchase_order_items (po_item_id),
+  expected_date date,
+  vehicle text,
+  remarks text,
+  received boolean not null default false,
+  received_date date,
+  linked_receipt_id bigint references public.receipts (receipt_id),
+  edited_by uuid references public.profiles (id) default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+-- ============================================================
 -- Stock summary (computed, always in sync — nothing to edit by hand)
 -- ============================================================
 create view public.stock_summary
@@ -222,7 +244,9 @@ select
   coalesce(h.total_held, 0) as packets_on_hold,
   (coalesce(r.total_received, 0) - coalesce(d.total_dispatched, 0)) - coalesce(h.total_held, 0) as packets_available,
   (coalesce(r.total_received, 0) - coalesce(d.total_dispatched, 0)) * p.packet_weight as quantity_kg,
-  ((coalesce(r.total_received, 0) - coalesce(d.total_dispatched, 0)) - coalesce(h.total_held, 0)) * p.packet_weight as quantity_after_hold_kg
+  ((coalesce(r.total_received, 0) - coalesce(d.total_dispatched, 0)) - coalesce(h.total_held, 0)) * p.packet_weight as quantity_after_hold_kg,
+  coalesce(i.total_incoming, 0) as packets_incoming,
+  coalesce(i.total_incoming, 0) * p.packet_weight as quantity_incoming_kg
 from public.products p
 left join (
   select product_id, sum(packets) as total_received
@@ -239,7 +263,13 @@ left join (
   from public.holds
   where released = false
   group by product_id
-) h on h.product_id = p.product_id;
+) h on h.product_id = p.product_id
+left join (
+  select product_id, sum(packets) as total_incoming
+  from public.incoming_stock
+  where received = false
+  group by product_id
+) i on i.product_id = p.product_id;
 
 -- ============================================================
 -- Purchase order item status (computed, always in sync)
@@ -637,6 +667,7 @@ alter table public.kpi_invoice_charges enable row level security;
 alter table public.receipts enable row level security;
 alter table public.dispatches enable row level security;
 alter table public.holds enable row level security;
+alter table public.incoming_stock enable row level security;
 alter table public.reel_receipts enable row level security;
 alter table public.reel_dispatches enable row level security;
 alter table public.reel_dispatch_cuts enable row level security;
@@ -706,6 +737,11 @@ create policy "holds: read" on public.holds
 create policy "holds: write" on public.holds
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+create policy "incoming_stock: read" on public.incoming_stock
+  for select using (auth.role() = 'authenticated');
+create policy "incoming_stock: write" on public.incoming_stock
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 create policy "reel_receipts: read" on public.reel_receipts
   for select using (auth.role() = 'authenticated');
 create policy "reel_receipts: write" on public.reel_receipts
@@ -739,6 +775,7 @@ grant select, insert, update, delete on public.kpi_invoice_charges to authentica
 grant select, insert, update, delete on public.receipts to authenticated;
 grant select, insert, update, delete on public.dispatches to authenticated;
 grant select, insert, update, delete on public.holds to authenticated;
+grant select, insert, update, delete on public.incoming_stock to authenticated;
 grant select, insert, update, delete on public.reel_receipts to authenticated;
 grant select, insert, update, delete on public.reel_dispatches to authenticated;
 grant select, insert, update, delete on public.reel_dispatch_cuts to authenticated;

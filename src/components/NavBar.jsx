@@ -8,6 +8,7 @@ export default function NavBar() {
     <nav className="navbar">
       <NavLink to="/" end>Stock</NavLink>
       <NavLink to="/receipts">Receipts</NavLink>
+      <NavLink to="/incoming-stock">Incoming Stock</NavLink>
       <NavLink to="/dispatches">Dispatches</NavLink>
       <NavLink to="/holds">Holds</NavLink>
       <NavLink to="/purchase-orders">Purchase Orders</NavLink>

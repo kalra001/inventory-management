@@ -14,6 +14,8 @@ const STOCK_COLUMNS = [
   { label: 'On Hold', value: (r) => r.packets_on_hold },
   { label: 'Available after Hold', value: (r) => r.packets_available },
   { label: 'Quantity after Hold', value: (r) => r.quantity_after_hold_kg },
+  { label: 'Incoming', value: (r) => r.packets_incoming },
+  { label: 'Incoming (kg)', value: (r) => r.quantity_incoming_kg },
 ]
 
 // if the query looks like "28*40", also try "40*28" so a search for one
@@ -49,6 +51,8 @@ function StockTable({ rows, emptyMessage }) {
             <th>On Hold</th>
             <th>Available after Hold</th>
             <th>Quantity after Hold</th>
+            <th>Incoming</th>
+            <th>Incoming (kg)</th>
           </tr>
         </thead>
         <tbody>
@@ -65,10 +69,12 @@ function StockTable({ rows, emptyMessage }) {
               <td data-label="On Hold">{r.packets_on_hold}</td>
               <td data-label="Available after Hold" className={r.packets_available <= 0 ? 'low-stock' : ''}>{r.packets_available}</td>
               <td data-label="Quantity after Hold" className={r.quantity_after_hold_kg <= 0 ? 'low-stock' : ''}>{r.quantity_after_hold_kg}</td>
+              <td data-label="Incoming">{r.packets_incoming}</td>
+              <td data-label="Incoming (kg)">{r.quantity_incoming_kg}</td>
             </tr>
           ))}
           {rows.length === 0 && (
-            <tr><td colSpan={11}>{emptyMessage}</td></tr>
+            <tr><td colSpan={13}>{emptyMessage}</td></tr>
           )}
         </tbody>
       </table>
@@ -107,8 +113,10 @@ export default function Dashboard() {
     return [...base].sort(byVarietyThenGsmSize((r) => r.variety, (r) => r.gsm, (r) => r.size_cm))
   }, [rows, search])
 
-  const inStockRows = useMemo(() => filtered.filter((r) => r.packets_in_stock > 0), [filtered])
-  const outOfStockRows = useMemo(() => filtered.filter((r) => r.packets_in_stock <= 0), [filtered])
+  // a product with nothing physically in stock but something already on the
+  // way still belongs in the main table, not buried under "out of stock"
+  const inStockRows = useMemo(() => filtered.filter((r) => r.packets_in_stock > 0 || r.packets_incoming > 0), [filtered])
+  const outOfStockRows = useMemo(() => filtered.filter((r) => r.packets_in_stock <= 0 && !(r.packets_incoming > 0)), [filtered])
 
   function handleDownload() {
     const csv = rowsToCsv(inStockRows, STOCK_COLUMNS)

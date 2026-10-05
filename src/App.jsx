@@ -4,6 +4,7 @@ import NavBar from './components/NavBar'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Receipts from './pages/Receipts'
+import IncomingStock from './pages/IncomingStock'
 import Dispatches from './pages/Dispatches'
 import Holds from './pages/Holds'
 import PurchaseOrders from './pages/PurchaseOrders'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute><Layout><Receipts /></Layout></ProtectedRoute>} />
+        <Route path="/incoming-stock" element={<ProtectedRoute><Layout><IncomingStock /></Layout></ProtectedRoute>} />
         <Route path="/dispatches" element={<ProtectedRoute><Layout><Dispatches /></Layout></ProtectedRoute>} />
         <Route path="/holds" element={<ProtectedRoute><Layout><Holds /></Layout></ProtectedRoute>} />
         <Route path="/purchase-orders" element={<ProtectedRoute><Layout><PurchaseOrders /></Layout></ProtectedRoute>} />
