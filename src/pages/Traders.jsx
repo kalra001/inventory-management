@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 
 export default function Traders() {
+  const { isAdmin } = useAuth()
   const [traders, setTraders] = useState([])
   const [name, setName] = useState('')
   const [error, setError] = useState(null)
@@ -77,7 +79,7 @@ export default function Traders() {
                 <td>{t.name}</td>
                 <td>{t.active ? 'Yes' : 'No'}</td>
                 <td><button type="button" onClick={() => toggleActive(t)}>{t.active ? 'Archive' : 'Unarchive'}</button></td>
-                <td><button type="button" onClick={() => handleDelete(t.trader_id)}>Delete</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => handleDelete(t.trader_id)}>Delete</button>}</td>
               </tr>
             ))}
             {traders.length === 0 && (

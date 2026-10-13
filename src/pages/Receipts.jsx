@@ -25,7 +25,7 @@ const REPORT_COLUMNS = [
 ]
 
 export default function Receipts() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
@@ -157,6 +157,21 @@ export default function Receipts() {
     setEditingId(null)
     setFromIncomingId(null)
     setForm(emptyForm)
+  }
+
+  async function deleteReceipt(receiptId) {
+    if (!window.confirm('Permanently delete this receipt? This cannot be undone.')) return
+    setError(null)
+    const { error } = await supabase.from('receipts').delete().eq('receipt_id', receiptId)
+    if (error) {
+      setError(
+        error.code === '23503'
+          ? 'Cannot delete this receipt — it is linked from an incoming stock entry that was received against it. Clear that link in Supabase (set its linked_receipt_id to null) first, then try again.'
+          : error.message
+      )
+      return
+    }
+    loadRecent()
   }
 
   async function handleSubmit(e) {
@@ -332,7 +347,7 @@ export default function Receipts() {
         <table className="card-table">
           <thead>
             <tr>
-              <th>SO Number</th><th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>SO Number</th><th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -351,6 +366,7 @@ export default function Receipts() {
                 <td data-label="Remarks">{r.remarks}</td>
                 <td data-label="Edited By">{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => deleteReceipt(r.receipt_id)}>Delete</button>}</td>
               </tr>
             ))}
           </tbody>

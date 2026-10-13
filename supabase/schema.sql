@@ -679,8 +679,12 @@ create policy "profiles: update own" on public.profiles
 
 create policy "products: read" on public.products
   for select using (auth.role() = 'authenticated');
-create policy "products: write" on public.products
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "products: insert" on public.products
+  for insert with check (auth.role() = 'authenticated');
+create policy "products: update" on public.products
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "products: delete" on public.products
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "purchase_orders: read" on public.purchase_orders
   for select using (auth.role() = 'authenticated');
@@ -704,8 +708,12 @@ create policy "bill_items: write" on public.bill_items
 
 create policy "traders: read" on public.traders
   for select using (auth.role() = 'authenticated');
-create policy "traders: write" on public.traders
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "traders: insert" on public.traders
+  for insert with check (auth.role() = 'authenticated');
+create policy "traders: update" on public.traders
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "traders: delete" on public.traders
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "kpi_invoices: read" on public.kpi_invoices
   for select using (auth.role() = 'authenticated');
@@ -714,18 +722,30 @@ create policy "kpi_invoices: write" on public.kpi_invoices
 
 create policy "kpi_invoice_items: read" on public.kpi_invoice_items
   for select using (auth.role() = 'authenticated');
-create policy "kpi_invoice_items: write" on public.kpi_invoice_items
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_items: insert" on public.kpi_invoice_items
+  for insert with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_items: update" on public.kpi_invoice_items
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_items: delete" on public.kpi_invoice_items
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "kpi_invoice_charges: read" on public.kpi_invoice_charges
   for select using (auth.role() = 'authenticated');
-create policy "kpi_invoice_charges: write" on public.kpi_invoice_charges
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_charges: insert" on public.kpi_invoice_charges
+  for insert with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_charges: update" on public.kpi_invoice_charges
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "kpi_invoice_charges: delete" on public.kpi_invoice_charges
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "receipts: read" on public.receipts
   for select using (auth.role() = 'authenticated');
-create policy "receipts: write" on public.receipts
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "receipts: insert" on public.receipts
+  for insert with check (auth.role() = 'authenticated');
+create policy "receipts: update" on public.receipts
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "receipts: delete" on public.receipts
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "dispatches: read" on public.dispatches
   for select using (auth.role() = 'authenticated');
@@ -739,8 +759,12 @@ create policy "holds: write" on public.holds
 
 create policy "incoming_stock: read" on public.incoming_stock
   for select using (auth.role() = 'authenticated');
-create policy "incoming_stock: write" on public.incoming_stock
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "incoming_stock: insert" on public.incoming_stock
+  for insert with check (auth.role() = 'authenticated');
+create policy "incoming_stock: update" on public.incoming_stock
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "incoming_stock: delete" on public.incoming_stock
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "reel_receipts: read" on public.reel_receipts
   for select using (auth.role() = 'authenticated');

@@ -80,7 +80,7 @@ function buildInvoiceSection(summary, items, charges) {
 }
 
 export default function KpiPurchases() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [traders, setTraders] = useState([])
   const [invoices, setInvoices] = useState([])
   const [itemsStatus, setItemsStatus] = useState([])
@@ -649,7 +649,7 @@ export default function KpiPurchases() {
                       <td>{r.price_per_kg}</td>
                       <td>{r.amount}</td>
                       <td><button type="button" onClick={() => startEditItem(r)}>Edit</button></td>
-                      <td><button type="button" onClick={() => deleteItem(r.item_id)}>Delete</button></td>
+                      <td>{isAdmin && <button type="button" onClick={() => deleteItem(r.item_id)}>Delete</button>}</td>
                     </tr>
                   ))}
                   {charges.map((r) => (
@@ -663,7 +663,7 @@ export default function KpiPurchases() {
                       <td></td>
                       <td>{r.amount}</td>
                       <td><button type="button" onClick={() => startEditCharge(r)}>Edit</button></td>
-                      <td><button type="button" onClick={() => deleteCharge(r.charge_id)}>Delete</button></td>
+                      <td>{isAdmin && <button type="button" onClick={() => deleteCharge(r.charge_id)}>Delete</button>}</td>
                     </tr>
                   ))}
                   {items.length === 0 && charges.length === 0 && (

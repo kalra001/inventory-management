@@ -21,7 +21,7 @@ const REPORT_COLUMNS = [
 ]
 
 export default function IncomingStock() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
   const [pos, setPos] = useState([])
@@ -343,7 +343,7 @@ export default function IncomingStock() {
                 <td>{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>
                 <td><button type="button" onClick={() => handleReceive(r)}>Receive</button></td>
-                <td><button type="button" onClick={() => deleteIncoming(r.incoming_id)}>Delete</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => deleteIncoming(r.incoming_id)}>Delete</button>}</td>
               </tr>
             ))}
             {filteredPending.length === 0 && (

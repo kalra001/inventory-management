@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { byVarietyThenGsmSize } from '../lib/csv'
 
 const emptyForm = { variety: '', gsm: '', size_cm: '', size_in: '', packet_weight: '' }
@@ -10,6 +11,7 @@ function buildProductId({ variety, gsm, size_cm, size_in }) {
 }
 
 export default function Products() {
+  const { isAdmin } = useAuth()
   const [products, setProducts] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState(null)
@@ -140,7 +142,7 @@ export default function Products() {
                 <td>{p.active ? 'Yes' : 'No'}</td>
                 <td><button type="button" onClick={() => startEdit(p)}>Edit</button></td>
                 <td><button type="button" onClick={() => toggleActive(p)}>{p.active ? 'Archive' : 'Unarchive'}</button></td>
-                <td><button type="button" onClick={() => handleDelete(p.product_id)}>Delete</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => handleDelete(p.product_id)}>Delete</button>}</td>
               </tr>
             ))}
           </tbody>
