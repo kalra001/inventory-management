@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { rowsToCsv, downloadCsv, addMonths, todayStr } from '../lib/csv'
+import { rowsToCsv, downloadCsv, addMonths, todayStr, daysAgoStr } from '../lib/csv'
 import SearchableSelect from '../components/SearchableSelect'
 
 const emptyForm = { product_id: '', date: todayStr(), packets: '', vehicle: '', challan_no: '', remarks: '' }
@@ -91,11 +91,13 @@ export default function Dispatches() {
   }
 
   async function loadRecent() {
+    const cutoffStr = daysAgoStr(5)
     const { data, error } = await supabase
       .from('dispatches')
       .select('dispatch_id, date, packets, vehicle, challan_no, remarks, product_id, products(product_id, variety, size_cm, size_in, packet_weight), profiles(name)')
+      .gte('date', cutoffStr)
+      .order('date', { ascending: false })
       .order('dispatch_id', { ascending: false })
-      .limit(25)
     if (error) setError(error.message)
     else setRecent(data)
   }
@@ -300,7 +302,8 @@ export default function Dispatches() {
       {reportError && <p className="error">{reportError}</p>}
       <p className="hint">Date range is limited to 2 months.</p>
 
-      <h2>Recent dispatches</h2>
+      <h2>Recent dispatches (last 5 days)</h2>
+      <p className="hint">Older dispatches aren't shown here — use Download report above to get them.</p>
       <div className="table-scroll">
         <table className="card-table">
           <thead>
