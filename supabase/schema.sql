@@ -749,8 +749,12 @@ create policy "receipts: delete" on public.receipts
 
 create policy "dispatches: read" on public.dispatches
   for select using (auth.role() = 'authenticated');
-create policy "dispatches: write" on public.dispatches
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "dispatches: insert" on public.dispatches
+  for insert with check (auth.role() = 'authenticated');
+create policy "dispatches: update" on public.dispatches
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "dispatches: delete" on public.dispatches
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "holds: read" on public.holds
   for select using (auth.role() = 'authenticated');

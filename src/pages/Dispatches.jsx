@@ -24,7 +24,7 @@ const REPORT_COLUMNS = [
 ]
 
 export default function Dispatches() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
@@ -125,6 +125,14 @@ export default function Dispatches() {
     setEditingOriginalPackets(0)
     setReleaseHoldId(null)
     setForm(emptyForm)
+  }
+
+  async function deleteDispatch(dispatchId) {
+    if (!window.confirm('Permanently delete this dispatch? This cannot be undone.')) return
+    setError(null)
+    const { error } = await supabase.from('dispatches').delete().eq('dispatch_id', dispatchId)
+    if (error) setError(error.message)
+    else loadRecent()
   }
 
   async function handleSubmit(e) {
@@ -308,7 +316,7 @@ export default function Dispatches() {
         <table className="card-table">
           <thead>
             <tr>
-              <th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th>
+              <th>Date</th><th>Product</th><th>Size (cm)</th><th>Size (in)</th><th>Packet Wt</th><th>Packets</th><th>Quantity (kg)</th><th>Vehicle</th><th>Challan No</th><th>Remarks</th><th>Edited By</th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -326,6 +334,7 @@ export default function Dispatches() {
                 <td data-label="Remarks">{r.remarks}</td>
                 <td data-label="Edited By">{r.profiles?.name}</td>
                 <td><button type="button" onClick={() => startEdit(r)}>Edit</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => deleteDispatch(r.dispatch_id)}>Delete</button>}</td>
               </tr>
             ))}
           </tbody>
