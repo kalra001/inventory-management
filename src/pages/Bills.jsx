@@ -55,11 +55,23 @@ export default function Bills() {
   const [reportError, setReportError] = useState(null)
   const [reportBusy, setReportBusy] = useState(false)
   const [creditDrafts, setCreditDrafts] = useState({})
+  const [viewFrom, setViewFrom] = useState('')
+  const [viewTo, setViewTo] = useState('')
 
   const billOptions = useMemo(
     () => bills.map((b) => ({ value: b.bill_id, label: `${b.bill_number} (${b.bill_date})` })),
     [bills]
   )
+
+  const filteredItemRows = useMemo(() => {
+    if (!viewFrom && !viewTo) return itemStatusRows
+    return itemStatusRows.filter((r) => (!viewFrom || r.bill_date >= viewFrom) && (!viewTo || r.bill_date <= viewTo))
+  }, [itemStatusRows, viewFrom, viewTo])
+
+  const filteredSummaryRows = useMemo(() => {
+    if (!viewFrom && !viewTo) return summaryRows
+    return summaryRows.filter((r) => (!viewFrom || r.bill_date >= viewFrom) && (!viewTo || r.bill_date <= viewTo))
+  }, [summaryRows, viewFrom, viewTo])
 
   const poItemOptions = useMemo(
     () => poItems.map((i) => ({
@@ -369,7 +381,23 @@ export default function Bills() {
       {reportError && <p className="error">{reportError}</p>}
       <p className="hint">Date range is limited to 2 months. Filters by bill date.</p>
 
-      <h2>Bill items</h2>
+      <div className="page-header">
+        <h2>Bill items</h2>
+      </div>
+      <form className="inline-form" onSubmit={(e) => e.preventDefault()}>
+        <label>
+          From
+          <input type="date" value={viewFrom} max={viewTo || undefined} onChange={(e) => setViewFrom(e.target.value)} />
+        </label>
+        <label>
+          To
+          <input type="date" value={viewTo} min={viewFrom || undefined} onChange={(e) => setViewTo(e.target.value)} />
+        </label>
+        {(viewFrom || viewTo) && (
+          <button type="button" onClick={() => { setViewFrom(''); setViewTo('') }}>Clear</button>
+        )}
+      </form>
+      <p className="hint">Filters Bill items and Bill totals below by bill date — e.g. set both to cover a full month. Leave blank to show everything.</p>
       <div className="table-scroll">
         <table>
           <thead>
@@ -380,7 +408,7 @@ export default function Bills() {
             </tr>
           </thead>
           <tbody>
-            {itemStatusRows.map((r) => (
+            {filteredItemRows.map((r) => (
               <tr key={r.bill_item_id}>
                 <td>{r.bill_number}</td>
                 <td>{r.bill_date}</td>
@@ -402,8 +430,8 @@ export default function Bills() {
                 <td><button type="button" onClick={() => startEditItem(r)}>Edit</button></td>
               </tr>
             ))}
-            {itemStatusRows.length === 0 && (
-              <tr><td colSpan={18}>No bill items yet.</td></tr>
+            {filteredItemRows.length === 0 && (
+              <tr><td colSpan={18}>{viewFrom || viewTo ? 'No bill items in that date range.' : 'No bill items yet.'}</td></tr>
             )}
           </tbody>
         </table>
@@ -419,7 +447,7 @@ export default function Bills() {
             </tr>
           </thead>
           <tbody>
-            {summaryRows.map((r) => {
+            {filteredSummaryRows.map((r) => {
               const draft = creditDrafts[r.bill_id] || {}
               const gstPreset = draft.gst_preset ?? presetForRate(r.gst_rate)
               return (
@@ -452,8 +480,8 @@ export default function Bills() {
               </tr>
               )
             })}
-            {summaryRows.length === 0 && (
-              <tr><td colSpan={11}>No bills yet.</td></tr>
+            {filteredSummaryRows.length === 0 && (
+              <tr><td colSpan={11}>{viewFrom || viewTo ? 'No bills in that date range.' : 'No bills yet.'}</td></tr>
             )}
           </tbody>
         </table>

@@ -8,6 +8,7 @@ import IncomingStock from './pages/IncomingStock'
 import Dispatches from './pages/Dispatches'
 import Holds from './pages/Holds'
 import PurchaseOrders from './pages/PurchaseOrders'
+import PendingByProduct from './pages/PendingByProduct'
 import Bills from './pages/Bills'
 import KpiPurchases from './pages/KpiPurchases'
 import Traders from './pages/Traders'
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/dispatches" element={<ProtectedRoute><Layout><Dispatches /></Layout></ProtectedRoute>} />
         <Route path="/holds" element={<ProtectedRoute><Layout><Holds /></Layout></ProtectedRoute>} />
         <Route path="/purchase-orders" element={<ProtectedRoute><Layout><PurchaseOrders /></Layout></ProtectedRoute>} />
+        <Route path="/pending-by-product" element={<ProtectedRoute><Layout><PendingByProduct /></Layout></ProtectedRoute>} />
         <Route path="/bills" element={<ProtectedRoute><Layout><Bills /></Layout></ProtectedRoute>} />
         <Route path="/kpi-purchases" element={<ProtectedRoute><Layout><KpiPurchases /></Layout></ProtectedRoute>} />
         <Route path="/traders" element={<ProtectedRoute><Layout><Traders /></Layout></ProtectedRoute>} />
