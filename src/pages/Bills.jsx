@@ -40,7 +40,7 @@ const BILL_TOTALS_COLUMNS = [
 ]
 
 export default function Bills() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [bills, setBills] = useState([])
   const [poItems, setPoItems] = useState([])
   const [itemStatusRows, setItemStatusRows] = useState([])
@@ -238,6 +238,34 @@ export default function Bills() {
     else loadSummary()
   }
 
+  async function deleteBillItem(billItemId) {
+    if (!window.confirm('Permanently delete this bill item? This cannot be undone.')) return
+    setError(null)
+    const { error } = await supabase.from('bill_items').delete().eq('bill_item_id', billItemId)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    loadItemStatus()
+    loadSummary()
+  }
+
+  async function deleteBill(billId, billNumber) {
+    if (!window.confirm(`Permanently delete bill ${billNumber}? This cannot be undone.`)) return
+    setError(null)
+    const { error } = await supabase.from('bills').delete().eq('bill_id', billId)
+    if (error) {
+      setError(
+        error.code === '23503'
+          ? `Cannot delete bill ${billNumber} — it still has items. Delete its items from the Bill items table first, then delete the bill.`
+          : error.message
+      )
+      return
+    }
+    loadBills()
+    loadSummary()
+  }
+
   async function toggleSettled(row) {
     const { error } = await supabase
       .from('bills')
@@ -405,7 +433,7 @@ export default function Bills() {
             <tr>
               <th>Bill Number</th><th>Bill Date</th><th>PO Number</th><th>SO Number</th><th>Company</th><th>Source</th><th>Ship To</th>
               <th>Product</th><th>NSR Rate</th><th>Actual Price/kg</th><th>Qty (kg)</th>
-              <th>Mill Billed</th><th>Expected</th><th>Variance</th><th>GST Rate</th><th>GST Amount</th><th>Variance incl. GST</th><th></th>
+              <th>Mill Billed</th><th>Expected</th><th>Variance</th><th>GST Rate</th><th>GST Amount</th><th>Variance incl. GST</th><th></th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -429,10 +457,11 @@ export default function Bills() {
                 <td>{r.item_gst_amount}</td>
                 <td className={r.variance_including_gst !== 0 ? 'low-stock' : ''}>{r.variance_including_gst}</td>
                 <td><button type="button" onClick={() => startEditItem(r)}>Edit</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => deleteBillItem(r.bill_item_id)}>Delete</button>}</td>
               </tr>
             ))}
             {filteredItemRows.length === 0 && (
-              <tr><td colSpan={18}>{viewFrom || viewTo ? 'No bill items in that date range.' : 'No bill items yet.'}</td></tr>
+              <tr><td colSpan={19}>{viewFrom || viewTo ? 'No bill items in that date range.' : 'No bill items yet.'}</td></tr>
             )}
           </tbody>
         </table>
@@ -444,7 +473,7 @@ export default function Bills() {
           <thead>
             <tr>
               <th>Bill Number</th><th>Bill Date</th><th>Total Variance</th><th>GST Rate</th><th>GST Amount</th><th>Net Claim</th>
-              <th>Credit Note No.</th><th>Credit Note Amt</th><th>Credit Note Date</th><th></th><th>Settled</th>
+              <th>Credit Note No.</th><th>Credit Note Amt</th><th>Credit Note Date</th><th></th><th>Settled</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -478,11 +507,12 @@ export default function Bills() {
                 <td><input type="date" value={creditDrafts[r.bill_id]?.credit_note_date ?? r.credit_note_date ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_date', e.target.value)} /></td>
                 <td><button type="button" onClick={() => saveCreditNote(r)}>Save</button></td>
                 <td><button type="button" onClick={() => toggleSettled(r)}>{r.settled ? 'Reopen' : 'Settle'}</button></td>
+                <td>{isAdmin && <button type="button" onClick={() => deleteBill(r.bill_id, r.bill_number)}>Delete</button>}</td>
               </tr>
               )
             })}
             {filteredSummaryRows.length === 0 && (
-              <tr><td colSpan={11}>{viewFrom || viewTo ? 'No bills in that date range.' : 'No bills yet.'}</td></tr>
+              <tr><td colSpan={12}>{viewFrom || viewTo ? 'No bills in that date range.' : 'No bills yet.'}</td></tr>
             )}
           </tbody>
         </table>

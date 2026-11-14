@@ -698,13 +698,21 @@ create policy "purchase_order_items: write" on public.purchase_order_items
 
 create policy "bills: read" on public.bills
   for select using (auth.role() = 'authenticated');
-create policy "bills: write" on public.bills
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "bills: insert" on public.bills
+  for insert with check (auth.role() = 'authenticated');
+create policy "bills: update" on public.bills
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "bills: delete" on public.bills
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "bill_items: read" on public.bill_items
   for select using (auth.role() = 'authenticated');
-create policy "bill_items: write" on public.bill_items
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "bill_items: insert" on public.bill_items
+  for insert with check (auth.role() = 'authenticated');
+create policy "bill_items: update" on public.bill_items
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "bill_items: delete" on public.bill_items
+  for delete using (exists (select 1 from public.profiles where id = auth.uid() and is_admin));
 
 create policy "traders: read" on public.traders
   for select using (auth.role() = 'authenticated');
