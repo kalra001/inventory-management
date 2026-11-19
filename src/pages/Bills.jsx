@@ -37,6 +37,29 @@ const BILL_TOTALS_COLUMNS = [
   { label: 'GST Rate', value: (r) => r.gst_rate },
   { label: 'GST Amount', value: (r) => r.gst_amount },
   { label: 'Net Claim', value: (r) => r.net_claim },
+  { label: 'Credit Note Amt', value: (r) => r.credit_note_amount },
+  { label: 'Credit Note Balance', value: (r) => creditBalance(r) },
+  { label: 'Credit Note No.', value: (r) => r.credit_note_number },
+  { label: 'Credit Note Date', value: (r) => r.credit_note_date },
+]
+
+// Net Claim minus the credit note amount received so far (0 received if blank).
+function creditBalance(r) {
+  return Math.round(((Number(r.net_claim) || 0) - (Number(r.credit_note_amount) || 0)) * 100) / 100
+}
+
+const BILL_TOTALS_EXPORT_COLUMNS = [
+  { label: 'Bill Number', value: (r) => r.bill_number },
+  { label: 'Bill Date', value: (r) => r.bill_date },
+  { label: 'Total Variance', value: (r) => r.total_variance },
+  { label: 'GST Rate', value: (r) => r.gst_rate },
+  { label: 'GST Amount', value: (r) => r.gst_amount },
+  { label: 'Net Claim', value: (r) => r.net_claim },
+  { label: 'Credit Note Amt', value: (r) => r.credit_note_amount },
+  { label: 'Credit Note Balance', value: (r) => creditBalance(r) },
+  { label: 'Credit Note No.', value: (r) => r.credit_note_number },
+  { label: 'Credit Note Date', value: (r) => r.credit_note_date },
+  { label: 'Status', value: (r) => (r.settled ? 'Settled' : 'Unsettled') },
 ]
 
 export default function Bills() {
@@ -57,6 +80,10 @@ export default function Bills() {
   const [creditDrafts, setCreditDrafts] = useState({})
   const [viewFrom, setViewFrom] = useState('')
   const [viewTo, setViewTo] = useState('')
+  const [totalsFrom, setTotalsFrom] = useState('')
+  const [totalsTo, setTotalsTo] = useState('')
+  const [totalsBusy, setTotalsBusy] = useState(false)
+  const [totalsError, setTotalsError] = useState(null)
 
   const billOptions = useMemo(
     () => bills.map((b) => ({ value: b.bill_id, label: `${b.bill_number} (${b.bill_date})` })),
@@ -319,6 +346,25 @@ export default function Bills() {
     downloadCsv(`bill-reconciliation-${reportFrom}-to-${reportTo}.csv`, csv)
   }
 
+  async function downloadBillTotals(e) {
+    e.preventDefault()
+    setTotalsError(null)
+    if (totalsFrom && totalsTo && totalsFrom > totalsTo) {
+      setTotalsError('"From" date must be on or before "To" date.')
+      return
+    }
+    setTotalsBusy(true)
+    let q = supabase.from('bill_summary').select('*')
+    if (totalsFrom) q = q.gte('bill_date', totalsFrom)
+    if (totalsTo) q = q.lte('bill_date', totalsTo)
+    const { data, error } = await q.order('bill_date', { ascending: true }).order('bill_number', { ascending: true })
+    setTotalsBusy(false)
+    if (error) { setTotalsError(error.message); return }
+    if (!data || data.length === 0) { setTotalsError('No bills in that date range.'); return }
+    const name = `bill-totals-${totalsFrom || 'start'}-to-${totalsTo || 'latest'}.csv`
+    downloadCsv(name, rowsToCsv(data, BILL_TOTALS_EXPORT_COLUMNS))
+  }
+
   return (
     <div className="page">
       <h1>Bill Reconciliation</h1>
@@ -473,7 +519,7 @@ export default function Bills() {
           <thead>
             <tr>
               <th>Bill Number</th><th>Bill Date</th><th>Total Variance</th><th>GST Rate</th><th>GST Amount</th><th>Net Claim</th>
-              <th>Credit Note No.</th><th>Credit Note Amt</th><th>Credit Note Date</th><th></th><th>Settled</th><th></th>
+              <th>Credit Note Amt</th><th>Credit Note Balance</th><th>Credit Note No.</th><th>Credit Note Date</th><th></th><th>Settled</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -502,8 +548,9 @@ export default function Bills() {
                 </td>
                 <td>{r.gst_amount}</td>
                 <td>{r.net_claim}</td>
-                <td><input value={creditDrafts[r.bill_id]?.credit_note_number ?? r.credit_note_number ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_number', e.target.value)} /></td>
                 <td><input type="number" step="any" value={creditDrafts[r.bill_id]?.credit_note_amount ?? r.credit_note_amount ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_amount', e.target.value)} /></td>
+                <td className={creditBalance(r) !== 0 ? 'low-stock' : ''}>{creditBalance(r)}</td>
+                <td><input value={creditDrafts[r.bill_id]?.credit_note_number ?? r.credit_note_number ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_number', e.target.value)} /></td>
                 <td><input type="date" value={creditDrafts[r.bill_id]?.credit_note_date ?? r.credit_note_date ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_date', e.target.value)} /></td>
                 <td><button type="button" onClick={() => saveCreditNote(r)}>Save</button></td>
                 <td><button type="button" onClick={() => toggleSettled(r)}>{r.settled ? 'Reopen' : 'Settle'}</button></td>
@@ -512,11 +559,26 @@ export default function Bills() {
               )
             })}
             {filteredSummaryRows.length === 0 && (
-              <tr><td colSpan={12}>{viewFrom || viewTo ? 'No bills in that date range.' : 'No bills yet.'}</td></tr>
+              <tr><td colSpan={13}>{viewFrom || viewTo ? 'No bills in that date range.' : 'No bills yet.'}</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <h3>Download Bill totals (Excel)</h3>
+      <form className="inline-form" onSubmit={downloadBillTotals}>
+        <label>
+          From
+          <input type="date" value={totalsFrom} onChange={(e) => setTotalsFrom(e.target.value)} />
+        </label>
+        <label>
+          To
+          <input type="date" value={totalsTo} onChange={(e) => setTotalsTo(e.target.value)} />
+        </label>
+        <button type="submit" disabled={totalsBusy}>{totalsBusy ? 'Preparing…' : 'Download'}</button>
+      </form>
+      <p className="hint">Includes both settled and unsettled bills, sorted by bill date, with Credit Note Balance and a Status column. Leave dates blank to download everything.</p>
+      {totalsError && <p className="error">{totalsError}</p>}
     </div>
   )
 }
