@@ -184,9 +184,14 @@ export default function Bills() {
       setError('Enter a custom GST rate.')
       return
     }
+    const newNumber = billForm.bill_number.trim()
+    if (bills.some((b) => String(b.bill_number).trim().toLowerCase() === newNumber.toLowerCase())) {
+      setError(`Bill ${newNumber} already exists.`)
+      return
+    }
     setSubmitting(true)
     const { error } = await supabase.from('bills').insert({
-      bill_number: billForm.bill_number.trim(),
+      bill_number: newNumber,
       bill_date: billForm.bill_date,
       gst_rate: gstRate,
       remarks: billForm.remarks || null,
@@ -194,7 +199,7 @@ export default function Bills() {
     })
     setSubmitting(false)
     if (error) {
-      setError(error.message)
+      setError(error.code === '23505' ? `Bill ${newNumber} already exists.` : error.message)
       return
     }
     setBillForm(emptyBillForm)

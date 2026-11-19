@@ -354,6 +354,9 @@ create table public.bills (
   created_at timestamptz not null default now()
 );
 
+-- a bill number can only be used once (ignores case and surrounding spaces)
+create unique index bills_bill_number_unique on public.bills (lower(btrim(bill_number)));
+
 -- one row per product on a bill. The per-kg discounts/additions now live on the
 -- PO item (agreed at ordering time) — a bill just states qty and what the mill billed.
 create table public.bill_items (
