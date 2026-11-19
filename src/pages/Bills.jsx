@@ -48,6 +48,12 @@ function creditBalance(r) {
   return Math.round(((Number(r.net_claim) || 0) - (Number(r.credit_note_amount) || 0)) * 100) / 100
 }
 
+// Same, but uses the amount currently typed in the box (before Save), so it updates as you type.
+function liveBalance(r, draft) {
+  const amt = draft && draft.credit_note_amount !== undefined ? draft.credit_note_amount : r.credit_note_amount
+  return creditBalance({ net_claim: r.net_claim, credit_note_amount: amt })
+}
+
 const BILL_TOTALS_EXPORT_COLUMNS = [
   { label: 'Bill Number', value: (r) => r.bill_number },
   { label: 'Bill Date', value: (r) => r.bill_date },
@@ -514,6 +520,19 @@ export default function Bills() {
       </div>
 
       <h2>Bill totals &amp; credit notes</h2>
+      <form className="inline-form" onSubmit={downloadBillTotals}>
+        <label>
+          Download from
+          <input type="date" value={totalsFrom} onChange={(e) => setTotalsFrom(e.target.value)} />
+        </label>
+        <label>
+          To
+          <input type="date" value={totalsTo} onChange={(e) => setTotalsTo(e.target.value)} />
+        </label>
+        <button type="submit" disabled={totalsBusy}>{totalsBusy ? 'Preparing…' : 'Download Excel'}</button>
+      </form>
+      <p className="hint">Downloads these bill totals (settled and unsettled), sorted by bill date. Leave dates blank to download everything.</p>
+      {totalsError && <p className="error">{totalsError}</p>}
       <div className="table-scroll">
         <table>
           <thead>
@@ -549,7 +568,7 @@ export default function Bills() {
                 <td>{r.gst_amount}</td>
                 <td>{r.net_claim}</td>
                 <td><input type="number" step="any" value={creditDrafts[r.bill_id]?.credit_note_amount ?? r.credit_note_amount ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_amount', e.target.value)} /></td>
-                <td className={creditBalance(r) !== 0 ? 'low-stock' : ''}>{creditBalance(r)}</td>
+                <td className={liveBalance(r, draft) !== 0 ? 'low-stock' : ''}>{liveBalance(r, draft)}</td>
                 <td><input value={creditDrafts[r.bill_id]?.credit_note_number ?? r.credit_note_number ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_number', e.target.value)} /></td>
                 <td><input type="date" value={creditDrafts[r.bill_id]?.credit_note_date ?? r.credit_note_date ?? ''} onChange={(e) => updateCreditDraft(r.bill_id, 'credit_note_date', e.target.value)} /></td>
                 <td><button type="button" onClick={() => saveCreditNote(r)}>Save</button></td>
@@ -563,22 +582,6 @@ export default function Bills() {
             )}
           </tbody>
         </table>
-      </div>
-
-      <h3>Download Bill totals (Excel)</h3>
-      <form className="inline-form" onSubmit={downloadBillTotals}>
-        <label>
-          From
-          <input type="date" value={totalsFrom} onChange={(e) => setTotalsFrom(e.target.value)} />
-        </label>
-        <label>
-          To
-          <input type="date" value={totalsTo} onChange={(e) => setTotalsTo(e.target.value)} />
-        </label>
-        <button type="submit" disabled={totalsBusy}>{totalsBusy ? 'Preparing…' : 'Download'}</button>
-      </form>
-      <p className="hint">Includes both settled and unsettled bills, sorted by bill date, with Credit Note Balance and a Status column. Leave dates blank to download everything.</p>
-      {totalsError && <p className="error">{totalsError}</p>}
-    </div>
+      </div>    </div>
   )
 }
